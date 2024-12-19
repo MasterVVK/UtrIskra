@@ -7,7 +7,7 @@ import sys  # Для завершения программы
 class GeminiService:
     """Класс для взаимодействия с Gemini Pro через SOCKS5-прокси и балансировку ключей."""
 
-    def __init__(self, timeout: int = 30):
+    def __init__(self, timeout: int = 120):
         if not GEMINI_API_KEYS:
             raise ValueError("GEMINI_API_KEYS отсутствуют. Проверьте файл config.py.")
         if not PROXY_URL:

@@ -7,6 +7,7 @@ from services.gemini_service import GeminiService
 from services.stability_service import StabilityService
 import asyncio
 import logging
+import httpx
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -30,8 +31,8 @@ class StoryBot:
         try:
             logger.info("Генерация описания изображения через Gemini Pro...")
             prompt = self.gemini_service.generate_prompt(
-                system_prompt="Создай описание изображения.",
-                user_prompt=f"Создай описание изображения на тему '{topic}'."
+                system_prompt="Создай описание изображения. Используй только текст",
+                user_prompt=f"Создай описание изображения на тему '{topic}'. Описание должно быть на английском языке."
             )
 
             logger.info(f"Сгенерированный промпт: {prompt}")
@@ -52,8 +53,11 @@ class StoryBot:
             )
 
             logger.info("Сторис успешно опубликована!")
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Ошибка HTTP при обращении к Stability AI: {e.response.status_code}")
+            logger.error(f"Детали ошибки: {e.response.text}")
         except Exception as e:
-            logger.error(f"Ошибка при публикации сторис: {e}")
+            logger.error(f"Общая ошибка: {e}")
 
     def register_handlers(self):
         """Регистрация команд бота."""
