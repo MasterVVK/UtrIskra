@@ -14,8 +14,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Путь для хранения файлов
-BASE_STORAGE_PATH = os.path.abspath("../storage")
+BASE_STORAGE_PATH = os.path.abspath("../../storage")
 IMAGES_PATH = os.path.join(BASE_STORAGE_PATH, "images")
+
 
 def create_image_path():
     """
@@ -30,6 +31,7 @@ def create_image_path():
     os.makedirs(directory, exist_ok=True)
 
     return os.path.join(directory, file_name)
+
 
 def add_date_to_image(image_path: str, date_text: str):
     """
@@ -62,6 +64,7 @@ def add_date_to_image(image_path: str, date_text: str):
     except Exception as e:
         logger.error(f"Ошибка при добавлении даты на изображение: {e}")
 
+
 def generate_dynamic_prompt():
     """
     Генерирует универсальный промпт для Gemini Pro с использованием даты и заданной тематики.
@@ -76,18 +79,23 @@ def generate_dynamic_prompt():
         "Use text only and write in English."
     )
 
+
 async def send_story():
     """
     Генерация и отправка сторис в Telegram.
     """
-    # Инициализация Telethon клиента
     client = TelegramClient("telegram_story_session", TELETHON_API_ID, TELETHON_API_HASH)
-    await client.start()
-
-    gemini_service = GeminiService()
-    stability_service = StabilityService()
 
     try:
+        # Проверяем, авторизован ли клиент
+        if not await client.is_user_authorized():
+            logger.info("Авторизация клиента...")
+            await client.start(phone=lambda: input("Введите ваш номер телефона: "))
+            logger.info("Авторизация завершена!")
+
+        gemini_service = GeminiService()
+        stability_service = StabilityService()
+
         # Генерация текста
         user_prompt = generate_dynamic_prompt()
         logger.info(f"Генерация текста через Gemini Pro на тему: {user_prompt}")
@@ -138,6 +146,7 @@ async def send_story():
         logger.error(f"Ошибка: {e}")
     finally:
         await client.disconnect()
+
 
 if __name__ == "__main__":
     initialize_database()
