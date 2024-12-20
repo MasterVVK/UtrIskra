@@ -69,8 +69,11 @@ def generate_dynamic_prompt():
     current_date = datetime.datetime.now().strftime("%d %B %Y")
     return (
         f"Today is {current_date}.\n"
-        "Create a deeply inspiring and imaginative text prompt for generating an artistic image. The themes should include space, galaxy, universe, fantasy, science fiction, future, or mystery. "
-        "The description should touch the soul and evoke strong emotions. Use the date as inspiration. Write the prompt in English."
+        "Create a highly creative and inspiring text prompt to create an artistic image."
+        "Themes should be universe, fantasy, fiction, future or mystic."
+        "All healthy themes that can touch a person's soul and inspire them."
+        "In the text prompt, you should specify, you do not need to depict national flags."
+        "Use text only and write in English."
     )
 
 async def send_daily_story():
@@ -85,10 +88,7 @@ async def send_daily_story():
         user_prompt = generate_dynamic_prompt()
         logger.info(f"Генерация текста через Gemini Pro на тему: {user_prompt}")
         system_prompt = (
-            "Создайте высококреативную и вдохновляющую текстовую подсказку для создания художественного образа."
-            "Темами должны быть космос, галактика, вселенная, фэнтези, научная фантастика, будущее, мистика или на свое усмотрение."
-            "Все здоровые темы, которые могут затронут душу человека и вдохновить его."
-            "Используйте только текст и пишите на английском языке."
+            "Create a highly creative and inspiring text prompt to create an artistic image."
         )
         generated_prompt = gemini_service.generate_prompt(
             system_prompt=system_prompt,
@@ -118,8 +118,7 @@ async def send_daily_story():
         logger.info("Отправка изображения в Telegram-группу...")
         await bot.send_photo(
             chat_id=TARGET_CHAT_ID,
-            photo=FSInputFile(image_path),
-            caption="Here is your inspiring image for the day! 🌟"
+            photo=FSInputFile(image_path)
         )
         logger.info("Изображение успешно отправлено!")
 
