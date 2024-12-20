@@ -14,16 +14,19 @@ from utils.database import initialize_database, save_to_database
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+BASE_STORAGE_PATH = os.path.abspath("../storage")  # Абсолютный путь к storage
+IMAGES_PATH = os.path.join(BASE_STORAGE_PATH, "images")
+
 def create_image_path():
     """
-    Создает путь для сохранения изображения в формате: images/{year}/{month}/{file_name}.
+    Создает путь для сохранения изображения в формате: storage/images/{year}/{month}/{file_name}.
     """
     current_date = datetime.datetime.now()
     year = current_date.strftime("%Y")
     month = current_date.strftime("%m")
     file_name = f"daily_story_{current_date.strftime('%Y%m%d_%H%M%S')}.png"
 
-    directory = os.path.join("images", year, month)
+    directory = os.path.join(IMAGES_PATH, year, month)
     os.makedirs(directory, exist_ok=True)
 
     return os.path.join(directory, file_name)
