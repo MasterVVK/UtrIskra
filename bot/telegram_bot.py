@@ -9,6 +9,7 @@ import asyncio
 import logging
 import httpx
 
+
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
