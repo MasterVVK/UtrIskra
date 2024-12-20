@@ -5,11 +5,64 @@ from aiogram.types import FSInputFile
 from config import TELEGRAM_TOKEN, TARGET_CHAT_ID
 from services.gemini_service import GeminiService
 from services.stability_service import StabilityService
+from PIL import Image, ImageDraw, ImageFont
 import logging
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def add_date_to_image(image_path: str, date_text: str):
+    """
+    Добавляет дату на изображение.
+    :param image_path: Путь к изображению.
+    :param date_text: Текст даты.
+    """
+    try:
+        # Открываем изображение
+        img = Image.open(image_path)
+        draw = ImageDraw.Draw(img)
+
+        # Настраиваем шрифт
+        font_size = int(min(img.size) * 0.05)  # Размер шрифта зависит от размера изображения
+        font = ImageFont.truetype("arial.ttf", font_size)  # Для Windows. На Linux замените шрифт, если нет arial
+
+        # Позиция текста
+        text_position = (img.size[0] - font_size * len(date_text) - 10, img.size[1] - font_size - 10)
+
+        # Цвет текста
+        text_color = (255, 255, 255)  # Белый
+
+        # Добавляем тень для читаемости
+        shadow_color = (0, 0, 0)  # Черный
+        shadow_offset = 2
+        draw.text(
+            (text_position[0] + shadow_offset, text_position[1] + shadow_offset),
+            date_text,
+            font=font,
+            fill=shadow_color,
+        )
+
+        # Добавляем текст
+        draw.text(text_position, date_text, font=font, fill=text_color)
+
+        # Сохраняем изображение
+        img.save(image_path)
+        logger.info(f"Дата '{date_text}' добавлена на изображение {image_path}")
+    except Exception as e:
+        logger.error(f"Ошибка при добавлении даты на изображение: {e}")
+
+def generate_dynamic_prompt():
+    """
+    Генерирует универсальный промпт для Gemini Pro с использованием даты и заданной тематики.
+    """
+    current_date = datetime.datetime.now().strftime("%d %B %Y")  # Пример: 20 December 2024
+
+    return (
+        f"Today is {current_date}.\n"
+        "Create a deeply inspiring and imaginative text prompt for generating an artistic image. The themes should include space, galaxy, universe, fantasy, science fiction, future, or mystery. "
+        "The description should touch the soul and evoke strong emotions. Use the date as inspiration. Write the prompt in English."
+    )
 
 async def send_daily_story():
     """
@@ -20,19 +73,19 @@ async def send_daily_story():
     stability_service = StabilityService()
 
     try:
-        # Получение текущей даты
-        current_date = datetime.datetime.now().strftime("%d %B %Y")  # Формат: 20 December 2024
-
         # Генерация текстового промпта
-        logger.info("Генерация описания изображения через Gemini Pro...")
+        prompt_text = generate_dynamic_prompt()
+        logger.info(f"Генерация текста через Gemini Pro на тему: {prompt_text}")
         prompt = gemini_service.generate_prompt(
-            system_prompt="Создай вдохновляющий текст для генерации картинки. Используй только текст. Описание должно быть на английском языке.",
-            user_prompt=(
-                f"Сегодня {current_date}.\n"
-                "Найди историческое событие в России, связанное с этой датой, и используй его для создания вдохновляющего текста. Используй космическую или вселенскую тематику "
-                "На основе этого текста составь запрос для создания изображения, который передаст атмосферу этого события. "
-                "Запрос должен быть на английском языке."
-            )
+            system_prompt=(
+                "Создайте высококреативную и вдохновляющую текстовую подсказку для создания художественного образа."
+                "Темами должны быть вселенная, фэнтези, фантастика, будущее, мистика или на свое усмотрение." 
+                "Все здоровые темы, которые могут затронут душу человека и вдохновить его."
+                "На изображении нет флагов стран."
+                "Используйте только текст и пишите на английском языке."
+            ),
+            user_prompt=prompt_text,
+            temperature=1.0  # Высокая температура для максимальной креативности
         )
         logger.info(f"Сгенерированный промпт: {prompt}")
 
@@ -46,12 +99,15 @@ async def send_daily_story():
             file.write(image_content)
         logger.info(f"Изображение сохранено в {image_path}")
 
+        # Добавление даты на изображение
+        current_date_text = datetime.datetime.now().strftime("%d.%m.%Y")
+        add_date_to_image(image_path, current_date_text)
+
         # Отправка изображения в Telegram
         logger.info("Отправка изображения в Telegram-группу...")
         await bot.send_photo(
             chat_id=TARGET_CHAT_ID,
-            photo=FSInputFile(image_path),
-            caption=f"Вдохновляющее изображение дня, связанное с историей {current_date} 🌟"
+            photo=FSInputFile(image_path)
         )
         logger.info("Изображение успешно отправлено!")
 
