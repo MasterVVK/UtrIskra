@@ -72,6 +72,7 @@ def generate_dynamic_prompt():
         "Create a highly creative and inspiring text prompt to create an artistic image."
         "Themes should be universe, fantasy, fiction, future or mystic."
         "All healthy themes that can touch a person's soul and inspire them."
+        "In the text prompt, you should specify, you do not need to depict national flags."
         "Use text only and write in English."
     )
 
