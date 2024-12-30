@@ -3,6 +3,7 @@ import base64
 import requests
 import logging
 import time
+import random
 from datetime import datetime
 from config import FOLDER_ID, OAUTH_TOKEN, IMAGES_PATH
 
@@ -64,10 +65,11 @@ class YandexArtService:
             "Authorization": f"Bearer {self.iam_token}",
             "X-Folder-Id": FOLDER_ID
         }
+        random_seed = random.randint(1, 9223372036854775807)
         data = {
             "modelUri": f"art://{FOLDER_ID}/yandex-art/latest",
             "generationOptions": {
-                "seed": 1863,
+                "seed": random_seed,
                 "aspectRatio": {"widthRatio": 9, "heightRatio": 16}
             },
             "messages": [{"weight": 1, "text": prompt}]

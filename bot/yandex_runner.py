@@ -67,7 +67,7 @@ async def send_daily_story():
         user_prompt = generate_dynamic_prompt()
         logger.info(f"Генерация текста через Gemini Pro: {user_prompt}")
         system_prompt = (
-            "Create a beautiful and inspiring text prompt for an artistic image."
+            "Create a beautiful and inspiring text prompt for an artistic image. Text only"
         )
         generated_prompt = gemini_service.generate_prompt(
             system_prompt=system_prompt,
