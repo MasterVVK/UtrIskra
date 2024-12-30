@@ -80,7 +80,7 @@ async def send_daily_story():
         image_path = yandex_art_service.generate_image(generated_prompt)
         logger.info(f"Изображение сохранено в {image_path}")
 
-        current_date_text = datetime.datetime.now().strftime("%d.%m.%Y")
+        current_date_text = "Y " + datetime.datetime.now().strftime("%d.%m.%Y")
         add_date_to_image(image_path, current_date_text)
 
         save_to_database(

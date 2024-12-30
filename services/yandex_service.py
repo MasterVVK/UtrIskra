@@ -3,6 +3,7 @@ import base64
 import requests
 import logging
 import time
+from datetime import datetime
 from config import FOLDER_ID, OAUTH_TOKEN, IMAGES_PATH
 
 logger = logging.getLogger(__name__)
@@ -30,9 +31,23 @@ class YandexArtService:
             logger.error(f"Ошибка при обновлении IAM-токена: {e}")
             raise
 
+    def create_image_path(self):
+        """
+        Создает путь для сохранения изображения в формате: storage/images/{year}/{month}/{file_name}.
+        """
+        current_date = datetime.now()
+        year = current_date.strftime("%Y")
+        month = current_date.strftime("%m")
+        file_name = f"yandex_story_{current_date.strftime('%Y%m%d_%H%M%S')}.jpeg"
+
+        directory = os.path.join(IMAGES_PATH, year, month)
+        os.makedirs(directory, exist_ok=True)
+
+        return os.path.join(directory, file_name)
+
     def generate_image(self, prompt: str) -> str:
         """
-        Генерирует изображение через Yandex-Art API.
+        Генерирует изображение через Yandex-Art API и сохраняет его на диск.
         :param prompt: Текстовый запрос для генерации изображения.
         :return: Путь к сохраненному изображению.
         """
@@ -53,7 +68,7 @@ class YandexArtService:
             "modelUri": f"art://{FOLDER_ID}/yandex-art/latest",
             "generationOptions": {
                 "seed": 1863,
-                "aspectRatio": {"widthRatio": 2, "heightRatio": 1}
+                "aspectRatio": {"widthRatio": 9, "heightRatio": 16}
             },
             "messages": [{"weight": 1, "text": prompt}]
         }
@@ -74,8 +89,7 @@ class YandexArtService:
             if not image_base64:
                 raise ValueError("Yandex API не вернул изображение")
 
-            image_path = os.path.join(IMAGES_PATH, f"yandex_story_{int(time.time())}.jpeg")
-            os.makedirs(IMAGES_PATH, exist_ok=True)
+            image_path = self.create_image_path()
             with open(image_path, "wb") as file:
                 file.write(base64.b64decode(image_base64))
 
