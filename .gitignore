@@ -162,3 +162,5 @@ cython_debug/
 *.png
 *.db
 *.session
+bot/generated/iam_token.json
+/storage/images

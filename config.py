@@ -28,3 +28,7 @@ BASE_STORAGE_PATH = os.getenv("BASE_STORAGE_PATH")  # Основной путь 
 IMAGES_PATH = os.path.join(BASE_STORAGE_PATH, "images")  # Путь для изображений
 DB_PATH = os.getenv("DB_PATH")  # Путь к базе данных
 FONTS_PATH = os.getenv("FONTS_PATH")  # Абсолютный путь к шрифту Roboto
+
+# Yandex Cloud Configuration
+FOLDER_ID = os.getenv("FOLDER_ID")           # Идентификатор папки в Yandex Cloud
+OAUTH_TOKEN = os.getenv("OAUTH_TOKEN")         # OAuth-токен для получения IAM-токена
