@@ -64,7 +64,7 @@ class YandexArtService:
             request_id = response.json().get("id")
 
             logger.info("Ожидание завершения генерации изображения...")
-            time.sleep(10)
+            time.sleep(20)
 
             result_url = f"https://llm.api.cloud.yandex.net:443/operations/{request_id}"
             result_response = requests.get(result_url, headers=headers)

@@ -14,20 +14,6 @@ from utils.database import initialize_database, save_to_database
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def create_image_path():
-    """
-    Создает путь для сохранения изображения в формате: storage/images/{year}/{month}/{file_name}.
-    """
-    current_date = datetime.datetime.now()
-    year = current_date.strftime("%Y")
-    month = current_date.strftime("%m")
-    file_name = f"yandex_story_{current_date.strftime('%Y%m%d_%H%M%S')}.jpeg"
-
-    directory = os.path.join(IMAGES_PATH, year, month)
-    os.makedirs(directory, exist_ok=True)
-
-    return os.path.join(directory, file_name)
-
 def add_date_to_image(image_path: str, date_text: str):
     """
     Добавляет дату на изображение.
@@ -92,6 +78,7 @@ async def send_daily_story():
 
         logger.info("Генерация изображения через Yandex-Art...")
         image_path = yandex_art_service.generate_image(generated_prompt)
+        logger.info(f"Изображение сохранено в {image_path}")
 
         current_date_text = datetime.datetime.now().strftime("%d.%m.%Y")
         add_date_to_image(image_path, current_date_text)
@@ -110,6 +97,7 @@ async def send_daily_story():
             photo=FSInputFile(image_path)
         )
         logger.info("Изображение успешно отправлено!")
+
     except Exception as e:
         logger.error(f"Ошибка: {e}")
     finally:
