@@ -1,12 +1,13 @@
 import sqlite3
 import os
 import logging
+from config import BASE_STORAGE_PATH
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
 
 # Путь к базе данных
-BASE_STORAGE_PATH = os.path.abspath("../storage")  # Абсолютный путь к storage
+#BASE_STORAGE_PATH = os.path.abspath("../storage")  # Абсолютный путь к storage
 DB_PATH = os.path.join(BASE_STORAGE_PATH, "database", "daily_images.db")
 
 def initialize_database():

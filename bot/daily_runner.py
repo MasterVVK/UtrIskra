@@ -3,7 +3,7 @@ import datetime
 import os
 from aiogram import Bot
 from aiogram.types import FSInputFile
-from config import TELEGRAM_TOKEN, TARGET_CHAT_ID
+from config import TELEGRAM_TOKEN, TARGET_CHAT_ID, IMAGES_PATH, FONTS_PATH
 from services.gemini_service import GeminiService
 from services.stability_service import StabilityService
 from PIL import Image, ImageDraw, ImageFont
@@ -13,9 +13,6 @@ from utils.database import initialize_database, save_to_database
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-BASE_STORAGE_PATH = os.path.abspath("../storage")  # Абсолютный путь к storage
-IMAGES_PATH = os.path.join(BASE_STORAGE_PATH, "images")
 
 def create_image_path():
     """
@@ -36,7 +33,7 @@ def add_date_to_image(image_path: str, date_text: str):
     Добавляет дату на изображение.
     """
     try:
-        font_path = "../fonts/Roboto-Regular.ttf"
+        font_path = f"{FONTS_PATH}/Roboto-Regular.ttf"
         if not os.path.exists(font_path):
             raise FileNotFoundError(f"Шрифт '{font_path}' не найден.")
 

@@ -22,3 +22,9 @@ GEMINI_API_KEYS = os.getenv("GEMINI_API_KEYS").split(",")
 TELETHON_API_ID = os.getenv("TELETHON_API_ID")  # Ваш API ID для Telethon
 TELETHON_API_HASH = os.getenv("TELETHON_API_HASH")  # Ваш API HASH для Telethon
 TELETHON_PEER = os.getenv("TELETHON_PEER")  # Целевое сообщество или канал
+
+# Storage Paths
+BASE_STORAGE_PATH = os.getenv("BASE_STORAGE_PATH")  # Основной путь к storage
+IMAGES_PATH = os.path.join(BASE_STORAGE_PATH, "images")  # Путь для изображений
+DB_PATH = os.getenv("DB_PATH")  # Путь к базе данных
+FONTS_PATH = os.getenv("FONTS_PATH")  # Абсолютный путь к шрифту Roboto
