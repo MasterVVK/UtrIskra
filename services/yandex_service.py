@@ -2,6 +2,7 @@ import os
 import base64
 import requests
 import logging
+import time
 from config import FOLDER_ID, OAUTH_TOKEN, IMAGES_PATH
 
 logger = logging.getLogger(__name__)
@@ -10,6 +11,7 @@ class YandexArtService:
     """Класс для взаимодействия с Yandex-Art API."""
     def __init__(self):
         self.iam_token = None
+        self.max_prompt_length = 500  # Максимальная длина текста для API
 
     def update_iam_token(self):
         """
@@ -37,10 +39,10 @@ class YandexArtService:
         if not self.iam_token:
             self.update_iam_token()
 
-        # Ограничение длины промпта
-        max_prompt_length = 500
-        if len(prompt) > max_prompt_length:
-            prompt = prompt[:max_prompt_length] + "..."
+        # Ограничение длины текста
+        if len(prompt) > self.max_prompt_length:
+            logger.warning(f"Текст запроса слишком длинный ({len(prompt)} символов). Обрезаем до {self.max_prompt_length} символов.")
+            prompt = prompt[:self.max_prompt_length]
 
         url = "https://llm.api.cloud.yandex.net/foundationModels/v1/imageGenerationAsync"
         headers = {
@@ -62,12 +64,17 @@ class YandexArtService:
             request_id = response.json().get("id")
 
             logger.info("Ожидание завершения генерации изображения...")
+            time.sleep(10)
+
             result_url = f"https://llm.api.cloud.yandex.net:443/operations/{request_id}"
             result_response = requests.get(result_url, headers=headers)
             result_response.raise_for_status()
-            image_base64 = result_response.json().get("response").get("image")
+            image_base64 = result_response.json().get("response", {}).get("image")
 
-            image_path = os.path.join(IMAGES_PATH, f"yandex_story_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.jpeg")
+            if not image_base64:
+                raise ValueError("Yandex API не вернул изображение")
+
+            image_path = os.path.join(IMAGES_PATH, f"yandex_story_{int(time.time())}.jpeg")
             os.makedirs(IMAGES_PATH, exist_ok=True)
             with open(image_path, "wb") as file:
                 file.write(base64.b64decode(image_base64))
@@ -75,5 +82,7 @@ class YandexArtService:
             logger.info(f"Изображение сохранено в {image_path}")
             return image_path
         except requests.exceptions.RequestException as e:
-            logger.error(f"Ошибка при генерации изображения: {e}")
+            logger.error(f"Ошибка при запросе к Yandex API: {e}")
+            if e.response:
+                logger.error(f"Ответ сервера: {e.response.text}")
             raise
