@@ -66,11 +66,20 @@ def generate_dynamic_prompt():
     current_date = datetime.datetime.now().strftime("%d %B %Y")
     return (
         f"Today is {current_date}.\n"
-        "Create a highly creative and inspiring text prompt to create an artistic image."
-#        "Themes should be universe, fantasy, fiction, future or mystic."
-        "All healthy themes that can touch a person's soul and inspire them."
-        "In the text prompt, you should specify, you do not need to depict national flags."
-        "Use text only and write in English."
+    "Сгенерировать одну случайную тему на основе текущей даты"
+    "Сгенерируй 10 различных вдохновляющих тем для создания иллюстраций."
+    "Используй номер дня месяца (например, 1…31) и рассчитай индекс как (день % 10)."
+    "Если результат равен 0, выбирай 10-ю тему;"
+    "Если результат не равен 0, выбирай тему с номером, равным результату."
+    "Выведи только одну выбранную тему. В ней должны быть:"
+    "Короткий заголовок"
+    "Краткое описание (2–4 предложения)"
+    "Расширенные стилистические ориентиры (жанр, эстетика, детали оформления, цветовая палитра и т.п.)"
+    "Если в теме вдруг встречаются флаги, они должны быть полностью выдуманными (не связанными с реальными странами)."
+    "Не добавляй технических деталей о том, как работают Stable Diffusion или Gemini 1.5 Pro."
+    "Включить хотя бы один неожиданный или сюрреалистический элемент, чтобы сделать изображение более интригующим."
+    "Use text only and write in English."
+
     )
 
 async def send_daily_story():
