@@ -59,6 +59,7 @@ class GeminiService:
                 )
 
                 if response.status_code == 200:
+#                    print(f"[WARNING] Текущий ключ {self.current_key}")
                     data = response.json()
                     return data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
 
