@@ -22,7 +22,7 @@ def create_image_path():
     current_date = datetime.datetime.now()
     year = current_date.strftime("%Y")
     month = current_date.strftime("%m")
-    file_name = f"midjourney_image_{current_date.strftime('%Y%m%d_%H%M%S')}.png"
+    file_name = f"midjourney_story_{current_date.strftime('%Y%m%d_%H%M%S')}.png"
 
     directory = os.path.join(IMAGES_PATH, year, month)
     os.makedirs(directory, exist_ok=True)
