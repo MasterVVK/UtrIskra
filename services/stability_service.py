@@ -4,8 +4,8 @@ from config import STABILITY_API_KEY
 class StabilityService:
     """Класс для взаимодействия с Stability.ai API."""
 
-    API_URL = "https://api.stability.ai/v2beta/stable-image/generate/sd3"
-
+#    API_URL = "https://api.stability.ai/v2beta/stable-image/generate/sd3"
+    API_URL = "https://api.stability.ai/v2beta/stable-image/generate/ultra"
     def __init__(self):
         self.headers = {
             "Authorization": f"Bearer {STABILITY_API_KEY}",
