@@ -97,7 +97,8 @@ async def send_daily_story():
         user_prompt = generate_dynamic_prompt()
         logger.info(f"Генерация текста через Gemini Pro на тему: {user_prompt}")
         system_prompt = (
-            "Create a highly creative and inspiring text prompt to create an artistic image."
+#            "Create a highly creative and inspiring text prompt to create an artistic image."
+            ""
         )
         generated_prompt = gemini_service.generate_prompt(
             system_prompt=system_prompt,
@@ -113,7 +114,7 @@ async def send_daily_story():
             file.write(image_content)
         logger.info(f"Изображение сохранено в {image_path}")
 
-        current_date_text = datetime.datetime.now().strftime("%d.%m.%Y")
+        current_date_text = "S " + datetime.datetime.now().strftime("%d.%m.%Y")
         add_date_to_image(image_path, current_date_text)
 
         save_to_database(
