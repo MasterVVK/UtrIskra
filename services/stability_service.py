@@ -1,15 +1,18 @@
 import httpx
+import random
 from config import STABILITY_API_KEY
 
 class StabilityService:
     """Класс для взаимодействия с Stability.ai API."""
 
-#    API_URL = "https://api.stability.ai/v2beta/stable-image/generate/sd3"
+    # Можете использовать нужный эндпоинт — здесь 'ultra':
     API_URL = "https://api.stability.ai/v2beta/stable-image/generate/ultra"
+
     def __init__(self):
         self.headers = {
             "Authorization": f"Bearer {STABILITY_API_KEY}",
-            "Accept": "image/*"  # Указываем, что ожидаем изображение
+            # НЕ указываем Content-Type руками, httpx сам поставит multipart/form-data
+            "Accept": "image/*"  # хотим получить изображение
         }
         self.timeout = httpx.Timeout(30.0)  # Таймаут 30 секунд
 
@@ -19,21 +22,24 @@ class StabilityService:
         :param prompt: Текстовый промпт для генерации изображения.
         :return: Содержимое изображения в формате байтов.
         """
-        payload = {
-            "prompt": prompt,
-            "aspect_ratio": "9:16",
-            "output_format": "png"
-        }
+        random_seed = random.randint(0, 4294967294)
+#        print(f"[DEBUG] Случайный сид: {random_seed}")
 
-        # Преобразуем данные для multipart/form-data
-        files = {key: (None, value) for key, value in payload.items()}
+        # Формируем поля для multipart/form-data
+        # Обратите внимание: seed переводим в строку (str), иначе возникнет ошибка 'int' object has no attribute 'read'
+        files = {
+            "prompt": (None, prompt),
+            "aspect_ratio": (None, "9:16"),
+            "output_format": (None, "png"),
+            "seed": (None, str(random_seed))
+        }
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
                 response = await client.post(
                     self.API_URL,
                     headers=self.headers,
-                    files=files  # Используем files для формата multipart/form-data
+                    files=files  # именно files, т.к. нужен multipart/form-data
                 )
 
                 # Проверка ответа
@@ -43,7 +49,9 @@ class StabilityService:
                 else:
                     print(f"[ERROR] Статус ответа: {response.status_code}")
                     print(f"[ERROR] Текст ответа: {response.text}")
-                    raise Exception(f"Ошибка API Stability AI: {response.status_code} - {response.text}")
+                    raise Exception(
+                        f"Ошибка API Stability AI: {response.status_code} - {response.text}"
+                    )
 
             except httpx.ReadTimeout:
                 print("[ERROR] Таймаут при ожидании ответа от Stability AI.")
