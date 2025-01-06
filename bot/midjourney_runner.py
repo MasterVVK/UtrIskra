@@ -1,10 +1,12 @@
 import asyncio
+import datetime
 import os
-from PIL import Image
-from config import TELEGRAM_TOKEN, TARGET_CHAT_ID, IMAGES_PATH
+from PIL import Image, ImageDraw, ImageFont
 from aiogram import Bot
 from aiogram.types import FSInputFile
+from config import TELEGRAM_TOKEN, TARGET_CHAT_ID, IMAGES_PATH, FONTS_PATH
 from services.midjourney_service import MidjourneyService
+from utils.database import initialize_database, save_to_database
 import logging
 import requests
 
@@ -12,13 +14,64 @@ import requests
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def create_image_path():
+    """
+    Создает путь для сохранения изображения в формате: storage/images/{year}/{month}/{file_name}.
+    """
+    current_date = datetime.datetime.now()
+    year = current_date.strftime("%Y")
+    month = current_date.strftime("%m")
+    file_name = f"midjourney_image_{current_date.strftime('%Y%m%d_%H%M%S')}.png"
+
+    directory = os.path.join(IMAGES_PATH, year, month)
+    os.makedirs(directory, exist_ok=True)
+
+    return os.path.join(directory, file_name)
+
+def add_date_to_image(image_path: str, date_text: str):
+    """
+    Добавляет дату на изображение.
+    """
+    try:
+        font_path = f"{FONTS_PATH}/Roboto-Regular.ttf"
+        if not os.path.exists(font_path):
+            raise FileNotFoundError(f"Шрифт '{font_path}' не найден.")
+
+        img = Image.open(image_path)
+        draw = ImageDraw.Draw(img)
+        font_size = int(min(img.size) * 0.05)
+        font = ImageFont.truetype(font_path, font_size)
+
+        text_position = (img.size[0] - font_size * len(date_text) - 10, img.size[1] - font_size - 10)
+        text_color = (255, 255, 255)
+        shadow_color = (0, 0, 0)
+        shadow_offset = 2
+
+        draw.text(
+            (text_position[0] + shadow_offset, text_position[1] + shadow_offset),
+            date_text,
+            font=font,
+            fill=shadow_color,
+        )
+        draw.text(text_position, date_text, font=font, fill=text_color)
+        img.save(image_path)
+        logger.info(f"Дата '{date_text}' добавлена на изображение {image_path}")
+    except Exception as e:
+        logger.error(f"Ошибка при добавлении даты на изображение: {e}")
+
 def download_image(image_url: str, file_path: str):
-    """Загрузка изображения из URL."""
-    response = requests.get(image_url)
-    response.raise_for_status()
-    with open(file_path, "wb") as file:
-        file.write(response.content)
-    logger.info(f"Изображение загружено и сохранено в {file_path}")
+    """
+    Скачивает изображение из указанного URL.
+    """
+    try:
+        response = requests.get(image_url)
+        response.raise_for_status()
+        with open(file_path, "wb") as file:
+            file.write(response.content)
+        logger.info(f"Изображение скачано и сохранено в {file_path}")
+    except Exception as e:
+        logger.error(f"Ошибка при скачивании изображения: {e}")
+        raise
 
 def crop_image(grid_path: str, output_path: str, position: int):
     """
@@ -27,34 +80,40 @@ def crop_image(grid_path: str, output_path: str, position: int):
     :param output_path: Путь для сохранения вырезанного изображения.
     :param position: Позиция (1-4) изображения в сетке.
     """
-    with Image.open(grid_path) as img:
-        width, height = img.size
-        cell_width, cell_height = width // 2, height // 2
+    try:
+        with Image.open(grid_path) as img:
+            width, height = img.size
+            cell_width, cell_height = width // 2, height // 2
 
-        # Определяем координаты для вырезания
-        positions = {
-            1: (0, 0, cell_width, cell_height),  # Верхний левый
-            2: (cell_width, 0, width, cell_height),  # Верхний правый
-            3: (0, cell_height, cell_width, height),  # Нижний левый
-            4: (cell_width, cell_height, width, height),  # Нижний правый
-        }
+            # Определяем координаты для вырезания
+            positions = {
+                1: (0, 0, cell_width, cell_height),  # Верхний левый
+                2: (cell_width, 0, width, cell_height),  # Верхний правый
+                3: (0, cell_height, cell_width, height),  # Нижний левый
+                4: (cell_width, cell_height, width, height),  # Нижний правый
+            }
 
-        if position not in positions:
-            raise ValueError("Позиция должна быть от 1 до 4.")
+            if position not in positions:
+                raise ValueError("Позиция должна быть от 1 до 4.")
 
-        cropped_img = img.crop(positions[position])
-        cropped_img.save(output_path)
-        logger.info(f"Изображение вырезано и сохранено в {output_path}")
+            cropped_img = img.crop(positions[position])
+            cropped_img.save(output_path)
+            logger.info(f"Изображение вырезано и сохранено в {output_path}")
+    except Exception as e:
+        logger.error(f"Ошибка при вырезании изображения: {e}")
+        raise
 
-async def send_midjourney_cropped_image():
-    """Генерация, вырезание и отправка изображения в Telegram с использованием Midjourney API."""
+async def send_midjourney_story():
+    """
+    Генерация и отправка вдохновляющего изображения через Midjourney API.
+    """
     bot = Bot(token=TELEGRAM_TOKEN)
     midjourney_service = MidjourneyService()
 
     try:
         prompt = "A dreamy landscape with mountains and a starry sky"
         logger.info(f"Отправка запроса Imagine с промптом: {prompt}")
-        imagine_task = midjourney_service.create_imagine_task(prompt, aspect_ratio="9:16")
+        imagine_task = midjourney_service.create_imagine_task(prompt, aspect_ratio="1:1")
         task_id = imagine_task["task_id"]
 
         logger.info(f"Ожидание завершения задачи Imagine {task_id}...")
@@ -64,25 +123,37 @@ async def send_midjourney_cropped_image():
         if not grid_image_url:
             raise ValueError("Не удалось получить URL сетки изображений из задачи Imagine")
 
-        # Скачивание сетки изображений
-        grid_file_name = f"midjourney_grid_{task_id}.png"
-        grid_file_path = os.path.join(IMAGES_PATH, grid_file_name)
-        download_image(grid_image_url, grid_file_path)
+        # Сохранение необработанного изображения
+        raw_image_path = create_image_path()
+        logger.info("Сохранение необработанного изображения...")
+        download_image(grid_image_url, raw_image_path)
 
-        # Вырезание первого изображения (например, верхнего левого)
-        cropped_file_name = f"midjourney_cropped_{task_id}.png"
-        cropped_file_path = os.path.join(IMAGES_PATH, cropped_file_name)
-        crop_image(grid_file_path, cropped_file_path, position=1)
+        # Вырезание одного изображения
+        processed_image_path = raw_image_path.replace(".png", "_processed.png")
+        crop_image(raw_image_path, processed_image_path, position=1)
 
-        # Отправка вырезанного изображения в Telegram
-        logger.info("Отправка вырезанного изображения в Telegram...")
-        await bot.send_photo(chat_id=TARGET_CHAT_ID, photo=FSInputFile(cropped_file_path))
+        # Добавление даты на обработанное изображение
+        current_date_text = datetime.datetime.now().strftime("%d.%m.%Y")
+        add_date_to_image(processed_image_path, current_date_text)
+
+        # Сохранение в базу данных
+        save_to_database(
+            date=datetime.datetime.now().strftime("%Y-%m-%d"),
+            system_prompt="Midjourney Prompt",
+            user_prompt=prompt,
+            generated_prompt="",
+            image_path=processed_image_path
+        )
+
+        # Отправка обработанного изображения в Telegram
+        logger.info("Отправка обработанного изображения в Telegram...")
+        await bot.send_photo(chat_id=TARGET_CHAT_ID, photo=FSInputFile(processed_image_path))
         logger.info("Изображение успешно отправлено!")
-
     except Exception as e:
         logger.error(f"Ошибка: {e}")
     finally:
         await bot.session.close()
 
 if __name__ == "__main__":
-    asyncio.run(send_midjourney_cropped_image())
+    initialize_database()
+    asyncio.run(send_midjourney_story())
