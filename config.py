@@ -32,3 +32,5 @@ FONTS_PATH = os.getenv("FONTS_PATH")  # Абсолютный путь к шри�
 # Yandex Cloud Configuration
 FOLDER_ID = os.getenv("FOLDER_ID")           # Идентификатор папки в Yandex Cloud
 OAUTH_TOKEN = os.getenv("OAUTH_TOKEN")         # OAuth-токен для получения IAM-токена
+
+MIDJOURNEY_API_TOKEN = os.getenv("MIDJOURNEY_API_TOKEN")
