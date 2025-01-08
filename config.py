@@ -34,3 +34,6 @@ FOLDER_ID = os.getenv("FOLDER_ID")           # Идентификатор пап
 OAUTH_TOKEN = os.getenv("OAUTH_TOKEN")         # OAuth-токен для получения IAM-токена
 
 MIDJOURNEY_API_TOKEN = os.getenv("MIDJOURNEY_API_TOKEN")
+
+# Flux API Key
+BFL_API_KEY = os.getenv("BFL_API_KEY")
