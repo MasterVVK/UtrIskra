@@ -29,6 +29,7 @@ class StabilityService:
         # Обратите внимание: seed переводим в строку (str), иначе возникнет ошибка 'int' object has no attribute 'read'
         files = {
             "prompt": (None, prompt),
+            "negative_prompt": (None, "(embedding:unaestheticXLv31:0.8), low quality, watermark"),
             "aspect_ratio": (None, "9:16"),
             "output_format": (None, "png"),
             "seed": (None, str(random_seed))
