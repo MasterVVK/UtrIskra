@@ -1,55 +1,57 @@
-
 ---
 
 # UtrIskra
 
-**UtrIskra** - это проект для автоматической генерации и публикации визуальных историй с использованием различных AI-генераторов, таких как Gemini Pro, Stability AI, Flux и другие. Проект интегрируется с Telegram для автоматической отправки результатов в указанный чат.
+**UtrIskra** - проект для автоматической генерации и публикации визуальных историй с использованием различных AI-генераторов, таких как Stability AI, Flux, Yandex-Art, MidJourney, и других. Проект включает функционал для интеграции с Telegram и автоматической отправки результатов.
 
 ---
 
 ## Основные возможности
 
-- **Генерация изображений**:
-  - Использование AI-сервисов (Stability AI, Flux, Yandex, MidJourney).
-  - Создание уникальных промптов через Gemini Pro.
-- **Публикация в Telegram**:
-  - Автоматическая публикация изображений с датой и подписью.
-  - Возможность настройки публикаций через команды Telegram-бота.
-- **Работа с базой данных**:
-  - Хранение данных о созданных изображениях (промпты, дата, путь к файлу).
+- **Генерация изображений:**
+  - Работа с популярными AI-сервисами: Stability AI, Flux, Yandex-Art, MidJourney.
+  - Генерация промптов через Gemini Pro.
+  - Возможность персонализации промптов и настройки параметров генерации.
+
+- **Публикация в Telegram:**
+  - Автоматическая отправка изображений в Telegram-чат.
+  - Использование Telethon и Aiogram для взаимодействия с Telegram API.
+
+- **Работа с базой данных:**
+  - Сохранение метаданных о сгенерированных изображениях.
+  - Организация файлового хранения результатов генерации.
 
 ---
 
 ## Структура проекта
 
 **Основные файлы:**
-- `main.py` - Запуск планировщика задач для публикаций.
-- `config.py` - Конфигурация проекта с API-ключами и путями.
-- `stability_test.py` - Тестовый скрипт для Stability AI.
+- `main.py`: Запуск планировщика задач для автоматической публикации историй.
+- `config.py`: Конфигурационный файл с настройками и API-ключами.
 
 **Модули:**
-1. **Утилиты (`utils`)**:
-   - `database.py` - Управление базой данных для сохранения информации о созданных изображениях.
-   - `logger.py` - Настройка и управление логированием.
+1. **Утилиты (`utils`):**
+   - `database.py`: Управление базой данных SQLite.
+   - `logger.py`: Настройка логирования.
 
-2. **Сервисы (`services`)**:
-   - `gemini_service.py` - Генерация промптов через Gemini Pro.
-   - `stability_service.py` - Генерация изображений через Stability AI.
-   - `flux_service.py` - Работа с API Flux.
-   - `midjourney_service.py` - Взаимодействие с MidJourney API.
-   - `yandex_service.py` - Использование Yandex-Art для генерации изображений.
+2. **Сервисы (`services`):**
+   - `gemini_service.py`: Взаимодействие с Gemini Pro для генерации текстовых промптов.
+   - `stability_service.py`: Использование Stability AI для генерации изображений.
+   - `flux_service.py`: Взаимодействие с Flux API для генерации изображений.
+   - `midjourney_service.py`: Поддержка MidJourney API.
+   - `yandex_service.py`: Работа с Yandex-Art для художественной генерации.
 
-3. **Бот (`bot`)**:
-   - `telegram_bot.py` - Telegram-бот с командами для генерации и публикации изображений.
-   - `scheduler.py` - Планировщик задач для регулярной отправки историй.
-   - `story_sender.py` - Отправка визуальных историй в Telegram.
-   - `create_telegram_session.py` - Скрипт для создания сессии Telethon.
+3. **Бот (`bot`):**
+   - `telegram_bot.py`: Telegram-бот для управления генерацией и публикацией.
+   - `scheduler.py`: Планировщик задач для автоматической публикации историй.
+   - `story_sender.py`: Отправка историй через Telegram.
+   - `create_telegram_session.py`: Скрипт для настройки сессии Telethon.
 
-4. **Раннеры**:
-   - `daily_runner.py` - Генерация изображений и публикация с использованием Stability AI.
-   - `flux_runner.py` - Генерация изображений с использованием Flux (аналогично `daily_runner.py`).
-   - `midjourney_runner.py` - Работа с MidJourney для генерации историй.
-   - `yandex_runner.py` - Использование Yandex для создания художественных изображений.
+4. **Раннеры:**
+   - `daily_runner.py`: Генерация изображений через Stability AI.
+   - `flux_runner.py`: Использование Flux для создания историй.
+   - `yandex_runner.py`: Интеграция с Yandex-Art.
+   - `midjourney_runner.py`: Генерация через MidJourney.
 
 ---
 
@@ -66,20 +68,22 @@
    pip install -r requirements.txt
    ```
 
-3. Создайте файл `.env` в корневой папке и добавьте ключи:
+3. Создайте файл `.env` и добавьте API-ключи:
    ```env
    STABILITY_API_KEY=ваш_ключ
    GEMINI_API_KEY=ваш_ключ
-   TELEGRAM_TOKEN=ваш_ключ
-   TARGET_CHAT_ID=ваш_чат_id
+   TELEGRAM_TOKEN=ваш_токен
+   TARGET_CHAT_ID=ваш_chat_id
    BFL_API_KEY=ваш_flux_ключ
+   FOLDER_ID=ваш_folder_id
+   OAUTH_TOKEN=ваш_yandex_oauth_token
    BASE_STORAGE_PATH=storage
    FONTS_PATH=fonts
    ```
 
 4. Настройте базу данных:
    ```bash
-   python -m utils.database
+   python utils/database.py
    ```
 
 ---
@@ -97,22 +101,22 @@ python main.py
 python bot/telegram_bot.py
 ```
 
-### Тестовые скрипты
-- Stability AI: `python stability_test.py`
+### Запуск раннеров
+- Stability AI: `python daily_runner.py`
 - Flux: `python flux_runner.py`
 - Yandex: `python yandex_runner.py`
+- MidJourney: `python midjourney_runner.py`
 
 ---
 
-## Структура данных
+## Дополнительная информация
 
-- База данных (`daily_images.db`):
-  - `id` - уникальный идентификатор.
-  - `date` - дата создания изображения.
-  - `system_prompt` - системный промпт.
-  - `user_prompt` - пользовательский промпт.
-  - `generated_prompt` - итоговый промпт.
-  - `image_path` - путь к изображению.
+**Файлы базы данных (`daily_images.db`):**
+- `id`: Уникальный идентификатор.
+- `date`: Дата создания изображения.
+- `system_prompt`: Системный промпт.
+- `user_prompt`: Промпт пользователя.
+- `generated_prompt`: Итоговый промпт.
+- `image_path`: Путь к изображению.
 
 ---
-
