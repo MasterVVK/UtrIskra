@@ -33,7 +33,11 @@ class FluxService:
         response = requests.post(
             f"{self.BASE_URL}{self.FLUX_ENDPOINT}",
             headers=self.headers,
-            json={"prompt": prompt, "width": width, "height": height, "aspect_ratio": "9:16"},
+            json={"prompt": prompt,
+                  "width": width,
+                  "height": height,
+                  "aspect_ratio": "9:16",
+                  "steps": 50},
         )
 
         if response.status_code != 200:
