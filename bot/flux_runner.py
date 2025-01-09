@@ -101,7 +101,7 @@ async def send_flux_story():
         generated_prompt = gemini_service.generate_prompt(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            temperature=1.0
+            temperature=0.7
         )
         logger.info(f"Сгенерированный промпт: {generated_prompt}")
 
