@@ -1,67 +1,18 @@
 import asyncio
-import base64
 import os
 import datetime
 from aiogram import Bot
 from aiogram.types import FSInputFile
-from config import TELEGRAM_TOKEN, TARGET_CHAT_ID, IMAGES_PATH, FONTS_PATH
+from config import TELEGRAM_TOKEN, TARGET_CHAT_ID
 from services.gemini_service import GeminiService
 from services.kandinsky_service import KandinskyService
-from PIL import Image, ImageDraw, ImageFont
 import logging
 from utils.database import initialize_database, save_to_database
+from utils.image_utils import save_image_from_base64, add_date_to_image, create_image_path
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-def save_image_from_base64(base64_image: str, file_path: str):
-    """Сохраняет изображение из Base64 в файл."""
-    with open(file_path, "wb") as file:
-        file.write(base64.b64decode(base64_image))
-
-def add_date_to_image(image_path: str, date_text: str):
-    """Добавляет дату на изображение."""
-    try:
-        font_path = f"{FONTS_PATH}/Roboto-Regular.ttf"
-        if not os.path.exists(font_path):
-            raise FileNotFoundError(f"Шрифт '{font_path}' не найден.")
-
-        img = Image.open(image_path)
-        draw = ImageDraw.Draw(img)
-        font_size = int(min(img.size) * 0.05)
-        font = ImageFont.truetype(font_path, font_size)
-
-        text_position = (img.size[0] - font_size * len(date_text) - 10, img.size[1] - font_size - 10)
-        text_color = (255, 255, 255)
-        shadow_color = (0, 0, 0)
-        shadow_offset = 2
-
-        draw.text(
-            (text_position[0] + shadow_offset, text_position[1] + shadow_offset),
-            date_text,
-            font=font,
-            fill=shadow_color,
-        )
-        draw.text(text_position, date_text, font=font, fill=text_color)
-        img.save(image_path)
-    except Exception as e:
-        logger.error(f"Ошибка при добавлении даты на изображение: {e}")
-
-def create_image_path():
-    """
-    Создает путь для сохранения изображения в формате: storage/images/{year}/{month}/{file_name}.
-    """
-    current_date = datetime.datetime.now()
-    year = current_date.strftime("%Y")
-    month = current_date.strftime("%m")
-    file_name = f"kandinsky_story_{current_date.strftime('%Y%m%d_%H%M%S')}.png"
-
-    directory = os.path.join(IMAGES_PATH, year, month)
-    os.makedirs(directory, exist_ok=True)
-
-    return os.path.join(directory, file_name)
-
 
 async def send_kandinsky_story():
     """Генерация и отправка изображения через Kandinsky API."""
@@ -76,7 +27,6 @@ async def send_kandinsky_story():
         kandinsky_service.check_availability_with_timeout(model_id)
 
         current_date = datetime.datetime.now().strftime("%d %B %Y")
-#        user_prompt = "Create a surreal landscape with futuristic elements."
         user_prompt = (
             f"Today is {current_date}.\n"
             "Сгенерируй 10 различных вдохновляющих тем для создания иллюстраций, со своей техникой рисования."
@@ -85,17 +35,16 @@ async def send_kandinsky_story():
             "Расширенные стилистические ориентиры (жанр, эстетика, детали оформления, цветовая палитра, техникой рисования и т.п.) "
             "Если в теме вдруг встречаются флаги, они должны быть полностью выдуманными (не связанными с реальными странами). "
             "Включить хотя бы один интересный элемент, чтобы сделать изображение более интригующим. "
-    
+
             "Используй номер дня месяца (например, 1…31) и рассчитай индекс как (день % 10)."
             "Если результат равен 0, выбирай 10-ю тему; "
             "Если результат не равен 0, выбирай тему с номером, равным результату."
-            f"Выведи только выбранную тему. Не нужно выводит список тем и результат расчета. "
+            "Выведи только выбранную тему. Не нужно выводить список тем и результат расчета. "
             "Выводи для выбранной темы только текст. "
             "Ответ должен содержать только текст из 950 символов"
         )
         logger.info(f"Генерация текста через Gemini: {user_prompt}")
 
-#        system_prompt = "Generate an inspiring art description."
         system_prompt = "Ответ должен содержать только текст из 950 символов"
         generated_prompt = gemini_service.generate_prompt(
             system_prompt=system_prompt,
@@ -114,7 +63,7 @@ async def send_kandinsky_story():
         base64_image = kandinsky_service.get_image(uuid, attempts=120, delay=10)
 
         # Создаем путь для изображения
-        image_path = create_image_path()
+        image_path = create_image_path(prefix="kandinsky_story")
 
         save_image_from_base64(base64_image, image_path)
         add_date_to_image(image_path, "K " + datetime.datetime.now().strftime("%d.%m.%Y"))
@@ -134,8 +83,6 @@ async def send_kandinsky_story():
     finally:
         # Закрываем сессию бота
         await bot.session.close()
-
-
 
 if __name__ == "__main__":
     initialize_database()
