@@ -25,14 +25,12 @@ class KandinskyService:
         """
         Проверяет доступность API каждые `delay` секунд в течение `attempts` попыток.
         """
-        model_id = self.get_model_id()  # Получаем ID модели
         for attempt in range(attempts):
             try:
                 logger.debug(f"Отправляем запрос с заголовками: {self.auth_headers}")
-                response = requests.post(
+                response = requests.get(
                     f"{self.BASE_URL}key/api/v1/text2image/availability",
-                    headers=self.auth_headers,
-                    json={"model_id": model_id},  # Передаем model_id в запросе
+                    headers=self.auth_headers,  # Заголовки с авторизацией
                     timeout=self.TIMEOUT
                 )
                 response.raise_for_status()  # Проверяем успешность запроса
@@ -46,6 +44,7 @@ class KandinskyService:
                     logger.debug(f"JSON ответа: {response_data}")
                 except ValueError:
                     logger.warning("Не удалось распарсить JSON из ответа сервера.")
+                    response_data = {}
 
                 # Проверяем статус доступности
                 status = response_data.get("model_status", None)
