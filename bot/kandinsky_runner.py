@@ -65,7 +65,6 @@ async def send_kandinsky_story():
             temperature=1.0
         )
 
-        # Проверяем длину промпта
         if len(generated_prompt) > 1000:
             logger.warning("Промпт превышает допустимый лимит в 1000 символов. Обрезаем текст.")
             generated_prompt = generated_prompt[:1000]
@@ -75,7 +74,8 @@ async def send_kandinsky_story():
         uuid = kandinsky_service.generate_image(generated_prompt, model_id)
 
         logger.info(f"Ожидание результата генерации...")
-        base64_image = kandinsky_service.get_image(uuid)
+        # Увеличиваем ожидание до 20 минут
+        base64_image = kandinsky_service.get_image(uuid, attempts=120, delay=10)
 
         image_path = os.path.join(IMAGES_PATH, "kandinsky_story.png")
         save_image_from_base64(base64_image, image_path)
@@ -93,6 +93,7 @@ async def send_kandinsky_story():
         logger.info("Изображение успешно отправлено!")
     except Exception as e:
         logger.error(f"Ошибка: {e}")
+
 
 
 if __name__ == "__main__":
