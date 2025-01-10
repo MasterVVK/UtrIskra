@@ -6,8 +6,8 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Ваши ключи
-KANDINSKY_API_KEY = "DDAAFDD73E4D133F9C86E790958487EA"
-KANDINSKY_SECRET_KEY = "8D441D8E55E390A2DA8BD89248D7C88E"
+KANDINSKY_API_KEY = ""
+KANDINSKY_SECRET_KEY = ""
 
 BASE_URL = "https://api-key.fusionbrain.ai/"
 AUTH_HEADERS = {

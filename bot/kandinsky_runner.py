@@ -96,6 +96,10 @@ async def send_kandinsky_story():
         logger.info("Изображение успешно отправлено!")
     except Exception as e:
         logger.error(f"Ошибка: {e}")
+    finally:
+        # Закрываем сессию бота
+        await bot.session.close()
+
 
 
 if __name__ == "__main__":
