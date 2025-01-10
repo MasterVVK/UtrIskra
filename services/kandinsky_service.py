@@ -45,14 +45,18 @@ class KandinskyService:
                 response.raise_for_status()
                 response_data = response.json()
                 logger.info(f"Ответ сервера: {response_data}")
-                if response_data.get("status") == "AVAILABLE":
-                    logger.info("API доступен для обработки запросов.")
+
+                status = response_data.get("status")
+                if status == "DISABLED_BY_QUEUE":
+                    logger.warning(f"API недоступен: {status}. Попытка {attempt + 1} из {attempts}.")
+                else:
+                    # Любые состояния, кроме DISABLED_BY_QUEUE, считаются доступными
+                    logger.info(f"API доступен: статус {status}.")
                     return
-                logger.warning(f"API недоступен: {response_data.get('status')}. Попытка {attempt + 1} из {attempts}.")
             except requests.exceptions.RequestException as e:
                 logger.error(f"Ошибка при проверке доступности API: {e}")
             if attempt < attempts - 1:
-                time.sleep(delay)
+                time.sleep(delay)  # Ждем перед следующей проверкой
         raise Exception("Сервис остается недоступным более 30 минут.")
 
     def generate_image(self, prompt: str, model_id: str, width: int = 1344, height: int = 768):
