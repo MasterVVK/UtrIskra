@@ -55,8 +55,10 @@ async def send_kandinsky_story():
     kandinsky_service = KandinskyService()
 
     try:
-        logger.info("Проверяем доступность сервиса Kandinsky...")
-        kandinsky_service.check_availability_with_timeout(attempts=6, delay=300)
+        logger.info("Получаем ID модели...")
+        model_id = kandinsky_service.get_model_id()
+        logger.info(f"Проверяем доступность сервиса Kandinsky для model_id={model_id}...")
+        kandinsky_service.check_availability_with_timeout(model_id)
 
         user_prompt = "Create a surreal landscape with futuristic elements."
         logger.info(f"Генерация текста через Gemini: {user_prompt}")
@@ -73,10 +75,9 @@ async def send_kandinsky_story():
             generated_prompt = generated_prompt[:1000]
 
         logger.info(f"Сгенерированный промпт: {generated_prompt}")
-        model_id = kandinsky_service.get_model_id()
         uuid = kandinsky_service.generate_image(generated_prompt, model_id)
 
-        logger.info(f"Ожидание результата генерации...")
+        logger.info("Ожидание результата генерации...")
         base64_image = kandinsky_service.get_image(uuid, attempts=120, delay=10)
 
         image_path = os.path.join(IMAGES_PATH, "kandinsky_story.png")
@@ -95,6 +96,7 @@ async def send_kandinsky_story():
         logger.info("Изображение успешно отправлено!")
     except Exception as e:
         logger.error(f"Ошибка: {e}")
+
 
 if __name__ == "__main__":
     initialize_database()
