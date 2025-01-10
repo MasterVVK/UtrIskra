@@ -32,11 +32,23 @@ class KandinskyService:
                 response = requests.post(
                     f"{self.BASE_URL}key/api/v1/text2image/availability",
                     headers=self.auth_headers,
-                    json={"model_id": model_id},  # Передаем модель
+                    json={"model_id": model_id},  # Передаем model_id в запросе
                     timeout=self.TIMEOUT
                 )
-                response.raise_for_status()  # Проверяем статус ответа
-                status = response.json().get("model_status")
+                response.raise_for_status()  # Проверяем успешность запроса
+
+                # Логируем полный текст ответа
+                logger.debug(f"Ответ сервера: {response.text}")
+
+                # Пытаемся извлечь JSON из ответа
+                try:
+                    response_data = response.json()
+                    logger.debug(f"JSON ответа: {response_data}")
+                except ValueError:
+                    logger.warning("Не удалось распарсить JSON из ответа сервера.")
+
+                # Проверяем статус доступности
+                status = response_data.get("model_status", None)
                 if status == "AVAILABLE":
                     logger.info("API доступен для обработки запросов.")
                     return
