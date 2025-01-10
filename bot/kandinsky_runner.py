@@ -48,6 +48,21 @@ def add_date_to_image(image_path: str, date_text: str):
     except Exception as e:
         logger.error(f"Ошибка при добавлении даты на изображение: {e}")
 
+def create_image_path():
+    """
+    Создает путь для сохранения изображения в формате: storage/images/{year}/{month}/{file_name}.
+    """
+    current_date = datetime.datetime.now()
+    year = current_date.strftime("%Y")
+    month = current_date.strftime("%m")
+    file_name = f"kandinsky_story_{current_date.strftime('%Y%m%d_%H%M%S')}.png"
+
+    directory = os.path.join(IMAGES_PATH, year, month)
+    os.makedirs(directory, exist_ok=True)
+
+    return os.path.join(directory, file_name)
+
+
 async def send_kandinsky_story():
     """Генерация и отправка изображения через Kandinsky API."""
     bot = Bot(token=TELEGRAM_TOKEN)
@@ -80,7 +95,9 @@ async def send_kandinsky_story():
         logger.info("Ожидание результата генерации...")
         base64_image = kandinsky_service.get_image(uuid, attempts=120, delay=10)
 
-        image_path = os.path.join(IMAGES_PATH, "kandinsky_story.png")
+        # Создаем путь для изображения
+        image_path = create_image_path()
+
         save_image_from_base64(base64_image, image_path)
         add_date_to_image(image_path, "K " + datetime.datetime.now().strftime("%d.%m.%Y"))
 
