@@ -75,10 +75,28 @@ async def send_kandinsky_story():
         logger.info(f"Проверяем доступность сервиса Kandinsky для model_id={model_id}...")
         kandinsky_service.check_availability_with_timeout(model_id)
 
-        user_prompt = "Create a surreal landscape with futuristic elements."
+        current_date = datetime.datetime.now().strftime("%d %B %Y")
+#        user_prompt = "Create a surreal landscape with futuristic elements."
+        user_prompt = (
+            f"Today is {current_date}.\n"
+            "Сгенерируй 10 различных вдохновляющих тем для создания иллюстраций, со своей техникой рисования."
+            "Для каждой темы укажи конкретный вид (например, от первого лица, сверху, сбоку, диагонально и т. д.) "
+            "Краткое описание (3–6 предложения и действия) "
+            "Расширенные стилистические ориентиры (жанр, эстетика, детали оформления, цветовая палитра, техникой рисования и т.п.) "
+            "Если в теме вдруг встречаются флаги, они должны быть полностью выдуманными (не связанными с реальными странами). "
+            "Включить хотя бы один интересный элемент, чтобы сделать изображение более интригующим. "
+    
+            "Используй номер дня месяца (например, 1…31) и рассчитай индекс как (день % 10)."
+            "Если результат равен 0, выбирай 10-ю тему; "
+            "Если результат не равен 0, выбирай тему с номером, равным результату."
+            f"Выведи только выбранную тему. Не нужно выводит список тем и результат расчета. "
+            "Выводи для выбранной темы только текст. "
+            "Ответ должен содержать только текст из 950 символов"
+        )
         logger.info(f"Генерация текста через Gemini: {user_prompt}")
 
-        system_prompt = "Generate an inspiring art description."
+#        system_prompt = "Generate an inspiring art description."
+        system_prompt = "Ответ должен содержать только текст из 950 символов"
         generated_prompt = gemini_service.generate_prompt(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
