@@ -37,7 +37,13 @@ async def send_dalle_story():
         logger.info(f"Сгенерированный промпт для DALL·E: {generated_prompt}")
 
         # Генерация изображения через DALL·E
-        image_url = dalle_service.generate_image(prompt=generated_prompt)
+        image_url = dalle_service.generate_image(
+            prompt=generated_prompt,
+            model="dall-e-3",
+            size="1024x1792",
+            quality="hd",
+            n=1
+        )
 
         # Скачивание изображения
         raw_image_path = create_image_path(prefix="dalle_image")

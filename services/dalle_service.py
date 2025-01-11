@@ -1,28 +1,27 @@
 import openai
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-from config import OPENAI_API_KEY, PROXY_URL  # Используем PROXY_URL из config.py
+import httpx
+from httpx_socks import SyncProxyTransport
+from config import OPENAI_API_KEY, PROXY_URL
 import logging
 
 logger = logging.getLogger(__name__)
 
-class DalleService:
-    def __init__(self):
-        """
-        Инициализация клиента DALL·E с использованием прокси.
-        """
-        self.session = requests.Session()
-        self.session.proxies = {
-            "http": PROXY_URL,
-            "https": PROXY_URL,
-        }
-        retries = Retry(total=5, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
-        self.session.mount("https://", HTTPAdapter(max_retries=retries))
 
-        # Устанавливаем API ключ OpenAI
+class DalleService:
+    """Класс для взаимодействия с DALL·E через SOCKS5-прокси."""
+
+    def __init__(self, timeout: int = 120):
+        if not OPENAI_API_KEY:
+            raise ValueError("OPENAI_API_KEY отсутствует. Проверьте файл config.py.")
+        if not PROXY_URL:
+            raise ValueError("PROXY_URL отсутствует. Проверьте файл config.py.")
+
+        # Настройка прокси
+        self.transport = SyncProxyTransport.from_url(PROXY_URL)
+        self.client = httpx.Client(transport=self.transport, timeout=httpx.Timeout(timeout))
+
+        # Устанавливаем API ключ для OpenAI
         openai.api_key = OPENAI_API_KEY
-        openai.proxy = PROXY_URL  # Передаем прокси для OpenAI API
 
     def generate_image(self, prompt, model="dall-e-3", size="1024x1024", quality="standard", n=1):
         """
@@ -35,18 +34,30 @@ class DalleService:
         :return: URL сгенерированного изображения.
         """
         try:
-            logger.info(f"Запрос на генерацию изображения: {prompt}")
-            response = openai.Image.create(
-                model=model,
-                prompt=prompt,
-                size=size,
-                quality=quality,
-                n=n
+#            logger.info(f"Запрос на генерацию изображения: {prompt}")
+            response = self.client.post(
+                "https://api.openai.com/v1/images/generations",
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "size": size,
+                    "quality": quality,
+                    "n": n,
+                },
+                headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
             )
-            if not response["data"] or "url" not in response["data"][0]:
-                logger.error(f"Ошибка в ответе DALL·E: {response}")
+            response.raise_for_status()
+            data = response.json()
+            if "data" in data and len(data["data"]) > 0 and "url" in data["data"][0]:
+                return data["data"][0]["url"]
+            else:
                 raise ValueError("URL изображения отсутствует в ответе DALL·E.")
-            return response["data"][0]["url"]
-        except openai.OpenAIError as e:
-            logger.error(f"Ошибка при обращении к DALL·E API: {e}")
+        except httpx.RequestError as e:
+            logger.error(f"Ошибка при подключении к DALL·E API: {e}")
+            raise
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Ошибка статуса HTTP: {e.response.status_code} - {e.response.text}")
+            raise
+        except Exception as e:
+            logger.error(f"Неизвестная ошибка: {e}")
             raise
