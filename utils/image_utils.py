@@ -1,6 +1,7 @@
 import os
 import datetime
 import base64
+import requests
 from PIL import Image, ImageDraw, ImageFont
 import logging
 from config import IMAGES_PATH, FONTS_PATH
@@ -64,3 +65,49 @@ def create_image_path(prefix: str = "story") -> str:
     os.makedirs(directory, exist_ok=True)
 
     return os.path.join(directory, file_name)
+
+def crop_image(grid_path: str, output_path: str, position: int):
+    """
+    Вырезает одно изображение из сетки 2x2.
+    :param grid_path: Путь к исходной сетке изображений.
+    :param output_path: Путь для сохранения вырезанного изображения.
+    :param position: Позиция (1-4) изображения в сетке.
+    """
+    try:
+        with Image.open(grid_path) as img:
+            width, height = img.size
+            cell_width, cell_height = width // 2, height // 2
+
+            # Определяем координаты для вырезания
+            positions = {
+                1: (0, 0, cell_width, cell_height),  # Верхний левый
+                2: (cell_width, 0, width, cell_height),  # Верхний правый
+                3: (0, cell_height, cell_width, height),  # Нижний левый
+                4: (cell_width, cell_height, width, height),  # Нижний правый
+            }
+
+            if position not in positions:
+                raise ValueError("Позиция должна быть от 1 до 4.")
+
+            cropped_img = img.crop(positions[position])
+            cropped_img.save(output_path)
+            logger.info(f"Изображение вырезано и сохранено в {output_path}")
+    except Exception as e:
+        logger.error(f"Ошибка при вырезании изображения: {e}")
+        raise
+
+def download_image(image_url: str, file_path: str):
+    """
+    Скачивает изображение из указанного URL и сохраняет на диск.
+    :param image_url: URL изображения.
+    :param file_path: Путь, куда сохранить изображение.
+    """
+    try:
+        response = requests.get(image_url)
+        response.raise_for_status()
+        with open(file_path, "wb") as file:
+            file.write(response.content)
+        logger.info(f"Изображение скачано и сохранено в {file_path}")
+    except Exception as e:
+        logger.error(f"Ошибка при скачивании изображения с {image_url}: {e}")
+        raise
