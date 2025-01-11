@@ -4,9 +4,7 @@ import requests
 import logging
 import time
 import random
-from datetime import datetime
 from config import FOLDER_ID, OAUTH_TOKEN
-from utils.image_utils import save_image_from_base64, create_image_path
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +31,9 @@ class YandexArtService:
 
     def generate_image(self, prompt: str) -> str:
         """
-        Генерирует изображение через Yandex-Art API и сохраняет его на диск.
+        Генерирует изображение через Yandex-Art API и возвращает Base64-данные.
         :param prompt: Текстовый запрос для генерации изображения.
-        :return: Путь к сохраненному изображению.
+        :return: Base64 строка изображения.
         """
         if not self.iam_token:
             self.update_iam_token()
@@ -75,10 +73,7 @@ class YandexArtService:
             if not image_base64:
                 raise ValueError("Yandex API не вернул изображение")
 
-            image_path = create_image_path(prefix="yandex_story")
-            save_image_from_base64(image_base64, image_path)
-            logger.info(f"Изображение сохранено в {image_path}")
-            return image_path
+            return image_base64
         except requests.exceptions.RequestException as e:
             logger.error(f"Ошибка при запросе к Yandex API: {e}")
             if e.response:
