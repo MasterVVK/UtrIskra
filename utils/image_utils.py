@@ -18,6 +18,7 @@ def save_image_from_base64(base64_image: str, file_path: str):
         logger.error(f"Ошибка при сохранении изображения: {e}")
         raise
 
+
 def add_date_to_image(image_path: str, date_text: str):
     """Добавляет дату на изображение."""
     try:
