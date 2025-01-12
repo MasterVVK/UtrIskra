@@ -13,7 +13,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-PROMPTS_FILE = "prompts/dalle_runner.txt"  # Путь к файлу с промптами
+PROMPTS_FILE = "bot/prompts/dalle_runner.txt"  # Путь к файлу с промптами
 
 async def send_dalle_story():
     """
