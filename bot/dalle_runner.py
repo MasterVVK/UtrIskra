@@ -1,8 +1,9 @@
+import os
 import asyncio
 import datetime
 from aiogram import Bot
 from aiogram.types import FSInputFile
-from config import TELEGRAM_TOKEN, TARGET_CHAT_ID
+from config import TELEGRAM_TOKEN, TARGET_CHAT_ID, PROMPTS_DIR
 from services.dalle_service import DalleService
 from services.gemini_service import GeminiService
 from utils.database import initialize_database, save_to_database
@@ -13,7 +14,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-PROMPTS_FILE = "bot/prompts/dalle_runner.txt"  # Путь к файлу с промптами
+PROMPTS_FILE = os.path.join(PROMPTS_DIR, "dalle_runner.txt")  # Формируем путь к файлу промптов
 
 async def send_dalle_story():
     """
