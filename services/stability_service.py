@@ -1,20 +1,23 @@
 import httpx
 import random
+import logging
 from config import STABILITY_API_KEY
+
+logger = logging.getLogger(__name__)
 
 class StabilityService:
     """Класс для взаимодействия с Stability.ai API."""
 
-    # Можете использовать нужный эндпоинт — здесь 'ultra':
     API_URL = "https://api.stability.ai/v2beta/stable-image/generate/ultra"
 
-    def __init__(self):
+    def __init__(self, timeout: int = 30):
+        if not STABILITY_API_KEY:
+            raise ValueError("STABILITY_API_KEY отсутствует. Проверьте файл config.py.")
         self.headers = {
             "Authorization": f"Bearer {STABILITY_API_KEY}",
-            # НЕ указываем Content-Type руками, httpx сам поставит multipart/form-data
-            "Accept": "image/*"  # хотим получить изображение
+            "Accept": "image/*"
         }
-        self.timeout = httpx.Timeout(30.0)  # Таймаут 30 секунд
+        self.timeout = timeout
 
     async def generate_image(self, prompt: str) -> bytes:
         """
@@ -23,10 +26,6 @@ class StabilityService:
         :return: Содержимое изображения в формате байтов.
         """
         random_seed = random.randint(0, 4294967294)
-#        print(f"[DEBUG] Случайный сид: {random_seed}")
-
-        # Формируем поля для multipart/form-data
-        # Обратите внимание: seed переводим в строку (str), иначе возникнет ошибка 'int' object has no attribute 'read'
         files = {
             "prompt": (None, prompt),
             "negative_prompt": (None, "(embedding:unaestheticXLv31:0.8), low quality, watermark"),
@@ -40,28 +39,21 @@ class StabilityService:
                 response = await client.post(
                     self.API_URL,
                     headers=self.headers,
-                    files=files  # именно files, т.к. нужен multipart/form-data
+                    files=files
                 )
 
-                # Проверка ответа
                 if response.status_code == 200:
-                    print("[INFO] Изображение успешно сгенерировано.")
+                    logger.info("Изображение успешно сгенерировано.")
                     return response.content
                 else:
-                    print(f"[ERROR] Статус ответа: {response.status_code}")
-                    print(f"[ERROR] Текст ответа: {response.text}")
-                    raise Exception(
-                        f"Ошибка API Stability AI: {response.status_code} - {response.text}"
-                    )
-
-            except httpx.ReadTimeout:
-                print("[ERROR] Таймаут при ожидании ответа от Stability AI.")
+                    logger.error(f"Ошибка API Stability AI: {response.status_code} - {response.text}")
+                    response.raise_for_status()
+            except httpx.RequestError as e:
+                logger.error(f"Ошибка подключения к Stability AI: {e}")
                 raise
             except httpx.HTTPStatusError as e:
-                print(f"[ERROR] HTTP Status Error: {e.response.status_code}")
-                print(f"[ERROR] Response Details: {e.response.text}")
+                logger.error(f"Ошибка статуса HTTP: {e.response.status_code} - {e.response.text}")
                 raise
             except Exception as e:
-                print(f"[ERROR] General Exception: {e}")
-                print(f"[ERROR] Exception Details: {type(e).__name__}, {str(e)}")
+                logger.error(f"Неизвестная ошибка: {e}")
                 raise
