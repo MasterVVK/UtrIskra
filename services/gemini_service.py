@@ -49,7 +49,8 @@ class GeminiService:
         for _ in range(len(self.api_keys)):
             try:
                 response = self.client.post(
-                    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent",
+#                    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent",
+                    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
                     params={"key": self.current_key},
                     headers={"Content-Type": "application/json"},
                     json={
