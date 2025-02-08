@@ -50,7 +50,8 @@ class GeminiService:
             while retries < 3:
                 try:
                     response = self.client.post(
-                        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent",
+                        #"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent",
+                        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-pro-exp-02-05:generateContent",
                         # "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent",
                         params={"key": self.current_key},
                         headers={"Content-Type": "application/json"},
