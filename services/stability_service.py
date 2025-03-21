@@ -28,8 +28,8 @@ class StabilityService:
         random_seed = random.randint(0, 4294967294)
         files = {
             "prompt": (None, prompt),
-            "negative_prompt": (None, "(embedding:unaestheticXLv31:0.8), low quality, watermark"),
-            "aspect_ratio": (None, "9:16"),
+            "negative_prompt": (None, "low quality, watermark"),
+            "aspect_ratio": (None, "16:9"),
             "output_format": (None, "png"),
             "seed": (None, str(random_seed))
         }

@@ -1,6 +1,7 @@
 import os
 import datetime
 import logging
+import random
 
 logger = logging.getLogger(__name__)  # Устанавливаем логгер для текущего модуля
 
@@ -26,7 +27,9 @@ def generate_dynamic_prompt(prompts_file: str) -> tuple:
 
         # Заменяем {current_date} в пользовательском промпте
         current_date = datetime.datetime.now().strftime("%d %B %Y")
+        random_theme = str(random.randint(1,10))
         user_prompt = user_prompt.replace("{current_date}", current_date)
+        user_prompt = user_prompt.replace("{random_theme}", random_theme)
 
         logger.info("Промпты успешно извлечены из файла.")
         return system_prompt, user_prompt

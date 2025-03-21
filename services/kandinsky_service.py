@@ -59,7 +59,7 @@ class KandinskyService:
                 time.sleep(delay)  # Ждем перед следующей проверкой
         raise Exception("Сервис остается недоступным более 30 минут.")
 
-    def generate_image(self, prompt: str, model_id: str, width: int = 768, height: int = 1344):
+    def generate_image(self, prompt: str, model_id: str, width: int = 1344, height: int = 768):
         """
         Генерация изображения по текстовому описанию.
         """

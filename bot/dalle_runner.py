@@ -41,7 +41,7 @@ async def send_dalle_story():
         image_url = dalle_service.generate_image(
             prompt=generated_prompt,
             model="dall-e-3",
-            size="1024x1792",
+            size="1792x1024",
             quality="hd",
             n=1
         )

@@ -29,7 +29,7 @@ class FluxService:
         }
         self.timeout = timeout
 
-    async def create_request(self, prompt: str, width: int = 768, height: int = 1344) -> str:
+    async def create_request(self, prompt: str, width: int = 1344, height: int = 768) -> str:
         """
         Создает запрос на генерацию изображения.
         :param prompt: Описание изображения.
@@ -41,7 +41,7 @@ class FluxService:
             "prompt": prompt,
             "width": width,
             "height": height,
-            "aspect_ratio": "9:16",
+            "aspect_ratio": "16:9",
             "steps": 50,
         }
 

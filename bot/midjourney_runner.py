@@ -44,7 +44,7 @@ async def send_midjourney_story():
 
         # Генерация изображения через Midjourney
         logger.info("Генерация изображения через Midjourney...")
-        imagine_task = midjourney_service.create_imagine_task(generated_prompt, aspect_ratio="9:16")
+        imagine_task = midjourney_service.create_imagine_task(generated_prompt, aspect_ratio="16:9")
 
         if "task_id" not in imagine_task:
             logger.error(f"Ключ 'task_id' отсутствует в ответе: {imagine_task}")

@@ -52,7 +52,7 @@ class YandexArtService:
             "modelUri": f"art://{FOLDER_ID}/yandex-art/latest",
             "generationOptions": {
                 "seed": random_seed,
-                "aspectRatio": {"widthRatio": 9, "heightRatio": 16}
+                "aspectRatio": {"widthRatio": 16, "heightRatio": 9}
             },
             "messages": [{"weight": 1, "text": prompt}]
         }
