@@ -8,9 +8,9 @@ from config import KANDINSKY_API_KEY, KANDINSKY_SECRET_KEY
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class KandinskyService:
     """Класс для взаимодействия с Kandinsky 3.1 API."""
-
     BASE_URL = "https://api-key.fusionbrain.ai/"
     TIMEOUT = 30  # Тайм-аут в секундах
 
@@ -24,7 +24,8 @@ class KandinskyService:
 
     def get_model_id(self):
         """Получение ID доступной модели."""
-        response = requests.get(f"{self.BASE_URL}key/api/v1/models", headers=self.auth_headers)
+        # Исправлено с models на pipelines согласно документации
+        response = requests.get(f"{self.BASE_URL}key/api/v1/pipelines", headers=self.auth_headers)
         response.raise_for_status()
         data = response.json()
         return data[0]["id"]
@@ -36,17 +37,16 @@ class KandinskyService:
         for attempt in range(attempts):
             try:
                 logger.debug(f"Отправляем запрос на проверку доступности с model_id={model_id}.")
+                # Исправлено согласно документации
                 response = requests.get(
-                    f"{self.BASE_URL}key/api/v1/text2image/availability",
+                    f"{self.BASE_URL}key/api/v1/pipeline/{model_id}/availability",
                     headers=self.auth_headers,
-                    params={"model_id": model_id},
                     timeout=self.TIMEOUT
                 )
                 response.raise_for_status()
                 response_data = response.json()
                 logger.info(f"Ответ сервера: {response_data}")
-
-                status = response_data.get("status")
+                status = response_data.get("pipeline_status")
                 if status == "DISABLED_BY_QUEUE":
                     logger.warning(f"API недоступен: {status}. Попытка {attempt + 1} из {attempts}.")
                 else:
@@ -68,13 +68,22 @@ class KandinskyService:
             "numImages": 1,
             "width": width,
             "height": height,
-            "generateParams": {"query": prompt},
+            "generateParams": {
+                "query": prompt
+            }
         }
-        files = {
-            "model_id": (None, model_id),
-            "params": (None, json.dumps(params), "application/json"),
+
+        # Правильный формат для multipart/form-data запроса согласно документации
+        data = {
+            'pipeline_id': (None, model_id),
+            'params': (None, json.dumps(params), 'application/json')
         }
-        response = requests.post(f"{self.BASE_URL}key/api/v1/text2image/run", headers=self.auth_headers, files=files)
+
+        response = requests.post(
+            f"{self.BASE_URL}key/api/v1/pipeline/run",
+            headers=self.auth_headers,
+            files=data
+        )
         response.raise_for_status()
         return response.json()["uuid"]
 
@@ -83,11 +92,13 @@ class KandinskyService:
         Получение результата генерации.
         """
         while attempts > 0:
-            response = requests.get(f"{self.BASE_URL}key/api/v1/text2image/status/{uuid}", headers=self.auth_headers)
+            # Исправлено с text2image на pipeline согласно документации
+            response = requests.get(f"{self.BASE_URL}key/api/v1/pipeline/status/{uuid}", headers=self.auth_headers)
             response.raise_for_status()
             data = response.json()
             if data["status"] == "DONE":
-                return data["images"][0]
+                # Исправлено с images[0] на result.files[0] согласно документации
+                return data["result"]["files"][0]
             elif data["status"] == "FAIL":
                 raise ValueError("Не удалось сгенерировать изображение.")
             attempts -= 1
