@@ -12,7 +12,7 @@ from config import TELEGRAM_TOKEN, TARGET_CHAT_ID, PROMPTS_DIR
 from services.midjourney_service import MidjourneyService
 from services.gemini_service import GeminiService
 from utils.database import initialize_database, save_to_database
-from utils.image_utils import create_video_path, download_video
+from utils.image_utils import create_video_path, download_video, create_image_path, download_image, add_date_to_image
 from utils.prompt_utils import generate_dynamic_prompt
 import logging
 
@@ -70,6 +70,20 @@ async def send_midjourney_video_story():
             raise ValueError(f"Не удалось получить URL первого изображения. Структура ответа: {imagine_result}")
 
         logger.info(f"Получен URL изображения: {first_image_url}")
+
+        # Скачиваем и сохраняем исходное изображение
+        image_path = create_image_path(prefix="midjourney_video_image")
+        logger.info("Скачивание исходного изображения...")
+        download_image(first_image_url, image_path)
+
+        # Добавляем дату на изображение
+        current_date_text = "MV " + datetime.datetime.now().strftime("%d.%m.%Y")
+        add_date_to_image(image_path, current_date_text)
+
+        # Отправляем изображение в Telegram
+        logger.info("Отправка исходного изображения в Telegram...")
+        await bot.send_photo(chat_id=TARGET_CHAT_ID, photo=FSInputFile(image_path))
+        logger.info("Исходное изображение успешно отправлено!")
 
         # Шаг 2: Создание видео из изображения
         logger.info("Создание видео из изображения...")
