@@ -51,18 +51,18 @@ async def send_midjourney_story():
         logger.info("Генерация изображения через Midjourney...")
         imagine_task = midjourney_service.create_imagine_task(generated_prompt, aspect_ratio="16:9")
 
-        if "task_id" not in imagine_task:
-            logger.error(f"Ключ 'task_id' отсутствует в ответе: {imagine_task}")
-            raise KeyError("Ключ 'task_id' отсутствует в ответе.")
+        if "requestId" not in imagine_task:
+            logger.error(f"Ключ 'requestId' отсутствует в ответе: {imagine_task}")
+            raise KeyError("Ключ 'requestId' отсутствует в ответе.")
 
-        task_id = imagine_task["task_id"]
-        logger.info(f"Ожидание завершения задачи Imagine {task_id}...")
-        imagine_result = midjourney_service.wait_for_task_completion(task_id)
+        request_id = imagine_task["requestId"]
+        logger.info(f"Ожидание завершения задачи Imagine {request_id}...")
+        imagine_result = midjourney_service.wait_for_task_completion(request_id)
 
-        # Проверка URL изображения
-        grid_image_url = imagine_result.get("output", {}).get("image_url")
+        # Проверка URL изображения (структура: data.output.collage.image_url)
+        grid_image_url = imagine_result.get("data", {}).get("output", {}).get("collage", {}).get("image_url")
         if not grid_image_url:
-            raise ValueError("Не удалось получить URL сетки изображений из задачи Imagine")
+            raise ValueError(f"Не удалось получить URL сетки изображений. Структура ответа: {imagine_result}")
 
         # Скачивание необработанного изображения
         raw_image_path = create_image_path(prefix="midjourney_story")
