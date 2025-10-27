@@ -1,81 +1,64 @@
-
-import httpx
-from httpx_socks import SyncProxyTransport
-from config import GEMINI_API_KEYS, PROXY_URL
+import os
 import sys
-import base64
+import logging
+from google import genai
+from google.genai import types
+from config import GEMINI_API_KEYS
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class GeminiImageService:
     """
-    Класс для взаимодействия с API генерации изображений Gemini.
-    Предполагается, что API похоже на другие сервисы Gemini.
+    Класс для взаимодействия с API генерации изображений Gemini с использованием библиотеки google-genai.
     """
 
-    def __init__(self, timeout: int = 120):
+    def __init__(self):
         if not GEMINI_API_KEYS:
             raise ValueError("GEMINI_API_KEYS отсутствуют. Проверьте файл config.py.")
-        if not PROXY_URL:
-            raise ValueError("PROXY_URL отсутствует. Проверьте файл config.py.")
         
         self.api_keys = GEMINI_API_KEYS
         self.current_key_index = 0
-        self.proxy_url = PROXY_URL
-        
-        self.transport = SyncProxyTransport.from_url(self.proxy_url)
-        self.client = httpx.Client(transport=self.transport, timeout=httpx.Timeout(timeout))
-
-    @property
-    def current_key(self) -> str:
-        return self.api_keys[self.current_key_index]
 
     def switch_to_next_key(self):
+        """Переключает на следующий ключ."""
         self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
-        print(f"[INFO] Переключение на следующий ключ: {self.current_key}")
+        logger.info(f"[INFO] Переключение на следующий ключ Gemini.")
 
     def generate_image(self, prompt: str) -> bytes:
         """
-        Генерирует изображение на основе текстового промпта.
+        Генерирует изображение на основе текстового промпта, используя google-genai.
         """
-        # ПРЕДПОЛОЖЕНИЕ: Мы предполагаем, что эндпоинт для генерации изображений
-        # имеет следующий формат. Это может потребовать корректировки.
-        api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateImage"
-
         for _ in range(len(self.api_keys)):
             try:
-                response = self.client.post(
-                    api_url,
-                    params={"key": self.current_key},
-                    headers={"Content-Type": "application/json"},
-                    json={
-                        "prompt": {
-                            "text": prompt
-                        }
-                    },
+                api_key = self.api_keys[self.current_key_index]
+                client = genai.Client(api_key=api_key)
+
+                model_name = "gemini-2.5-flash-image-preview"
+                logger.info(f"Запрос на генерацию изображения с моделью {model_name} и промптом: {prompt}")
+
+                response_stream = client.models.generate_content_stream(
+                    model=model_name,
+                    contents=[prompt],
+                    config=types.GenerateContentConfig(
+                        response_modalities=["IMAGE"]
+                    ),
                 )
 
-                if response.status_code == 200:
-                    # ПРЕДПОЛОЖЕНИЕ: Мы предполагаем, что ответ содержит
-                    # изображение в формате base64 в поле 'image_data'.
-                    image_data = response.json().get("image_data")
-                    if image_data:
-                        return base64.b64decode(image_data)
-                    else:
-                        raise ValueError("Ответ API не содержит данных изображения.")
-                elif response.status_code == 429:
-                    print(f"[WARNING] Ключ {self.current_key} исчерпан. Переключаемся.")
-                    self.switch_to_next_key()
-                    continue
-                else:
-                    print(f"[ERROR] Ошибка API {response.status_code}: {response.text}")
-                    # В случае другой ошибки, переключаемся на следующий ключ
-                    self.switch_to_next_key()
-                    continue
+                for chunk in response_stream:
+                    if chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts:
+                        part = chunk.candidates[0].content.parts[0]
+                        if part.inline_data and part.inline_data.data:
+                            logger.info("Изображение успешно сгенерировано.")
+                            return part.inline_data.data
+
+                raise ValueError("Не удалось получить данные изображения из потока API.")
 
             except Exception as e:
-                print(f"[ERROR] Ошибка при запросе к Gemini Image API: {e}")
+                logger.error(f"Ошибка при работе с Gemini API: {e}")
                 self.switch_to_next_key()
                 continue
-        
-        print("[CRITICAL] Все API-ключи недействительны или исчерпаны. Завершение работы.")
-        sys.exit(1)
 
+        logger.critical("[CRITICAL] Все API-ключи Gemini недействительны или исчерпаны. Завершение работы.")
+        sys.exit(1)

@@ -1,6 +1,11 @@
 import asyncio
 import datetime
 import os
+import sys
+
+# Добавляем корневую директорию в путь для импорта
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from aiogram import Bot
 from aiogram.types import FSInputFile
 from config import TELEGRAM_TOKEN, TARGET_CHAT_ID, IMAGES_PATH, FONTS_PATH
