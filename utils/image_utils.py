@@ -66,6 +66,22 @@ def create_image_path(prefix: str = "story") -> str:
 
     return os.path.join(directory, file_name)
 
+def create_video_path(prefix: str = "video") -> str:
+    """
+    Создает путь для сохранения видео в формате: storage/images/{year}/{month}/{file_name}.
+    :param prefix: Префикс имени файла.
+    :return: Полный путь к файлу.
+    """
+    current_date = datetime.datetime.now()
+    year = current_date.strftime("%Y")
+    month = current_date.strftime("%m")
+    file_name = f"{prefix}_{current_date.strftime('%Y%m%d_%H%M%S')}.mp4"
+
+    directory = os.path.join(IMAGES_PATH, year, month)
+    os.makedirs(directory, exist_ok=True)
+
+    return os.path.join(directory, file_name)
+
 def crop_image(grid_path: str, output_path: str, position: int):
     """
     Вырезает одно изображение из сетки 2x2.
@@ -110,4 +126,21 @@ def download_image(image_url: str, file_path: str):
         logger.info(f"Изображение скачано и сохранено в {file_path}")
     except Exception as e:
         logger.error(f"Ошибка при скачивании изображения с {image_url}: {e}")
+        raise
+
+def download_video(video_url: str, file_path: str):
+    """
+    Скачивает видео из указанного URL и сохраняет на диск.
+    :param video_url: URL видео.
+    :param file_path: Путь, куда сохранить видео.
+    """
+    try:
+        response = requests.get(video_url, stream=True)
+        response.raise_for_status()
+        with open(file_path, "wb") as file:
+            for chunk in response.iter_content(chunk_size=8192):
+                file.write(chunk)
+        logger.info(f"Видео скачано и сохранено в {file_path}")
+    except Exception as e:
+        logger.error(f"Ошибка при скачивании видео с {video_url}: {e}")
         raise

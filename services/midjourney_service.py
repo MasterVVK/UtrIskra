@@ -27,6 +27,32 @@ class MidjourneyService:
         response.raise_for_status()
         return response.json()
 
+    def create_video_task(self, file_url: str, prompt: str = "", motion: str = "high",
+                         video_batch_size: int = 1, task_type: str = "image-to-video") -> dict:
+        """
+        Создание задачи генерации видео из изображения.
+
+        Args:
+            file_url: URL изображения для создания видео
+            prompt: Опциональный промпт для управления движением
+            motion: Уровень движения "low" или "high" (по умолчанию "high")
+            video_batch_size: Количество видео для генерации 1, 2 или 4 (по умолчанию 1)
+            task_type: Тип задачи "image-to-video" или "image-to-video-hd"
+        """
+        url = f"{self.BASE_URL}/generate"
+        payload = {
+            "taskType": task_type,
+            "fileUrl": file_url,
+            "motion": motion,
+            "videoBatchSize": video_batch_size
+        }
+        if prompt:
+            payload["prompt"] = prompt
+
+        response = self.client.post(url, json=payload)
+        response.raise_for_status()
+        return response.json()
+
     def get_task_status(self, request_id: str) -> dict:
         """Получение статуса задачи."""
         url = f"{self.STATUS_URL}?requestId={request_id}"
