@@ -6,6 +6,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **UtrIskra** - система автоматической генерации и публикации AI-изображений в Telegram через различные генераторы (Stability AI, Flux, DALL-E, MidJourney, Kandinsky, Yandex Art, Gemini Image). Использует Gemini Pro для генерации промптов и APScheduler для планирования публикаций.
 
+## Midjourney API - Прямая загрузка изображений
+
+API поддерживает endpoint `/v1/midjourney/image/upload` для прямой загрузки изображений через base64 без использования внешних сервисов.
+
+**Метод `upload_image()` в MidjourneyService** (`services/midjourney_service.py:32-72`):
+- Конвертирует локальный файл в base64
+- Загружает на CDN Kolersky через POST запрос
+- Возвращает публичный URL вида `https://cdn.kolersky.com/uuid/image.png`
+- Поддерживаемые форматы: PNG, JPG/JPEG, WebP
+- Максимальный размер: 100MB
+- Автоматическое удаление через 15 дней
+- Бесплатная операция (не расходует requests)
+
+**Преимущества**:
+- Безопасность: токен бота не передается на сторонние ресурсы (catbox.moe, tmpfiles.org и т.п.)
+- Нативная интеграция с Midjourney API
+- Надежность: изображения хранятся на CDN провайдера
+
 ## Основные команды
 
 ### Установка зависимостей
@@ -27,12 +45,14 @@ python utils/database.py
 ### Запуск отдельных генераторов (для тестирования)
 ```bash
 python bot/daily_runner.py          # Stability AI (7:00)
-python bot/kandinsky_runner.py      # Kandinsky (8:00)
-python bot/midjourney_runner.py     # MidJourney (9:00)
-python bot/dalle_runner.py          # DALL-E (10:00)
-python bot/flux_runner.py           # Flux (11:00)
-python bot/yandex_runner.py         # Yandex Art (12:00)
-python bot/gemini_image_runner.py   # Gemini Image (13:00)
+python bot/kandinsky_runner.py          # Kandinsky (8:00)
+python bot/midjourney_runner.py         # MidJourney (9:00)
+python bot/dalle_runner.py              # DALL-E (10:00)
+python bot/flux_runner.py               # Flux (11:00)
+python bot/yandex_runner.py             # Yandex Art (12:00)
+python bot/gemini_image_runner.py       # Gemini Image (13:00)
+python bot/midjourney_video_runner.py   # MidJourney Video (14:00)
+python bot/best_image_video_runner.py   # Best Image Animation (15:00) - требует Telethon auth
 ```
 
 ### Тестирование доступности сервисов
@@ -78,7 +98,7 @@ python services/test_availability.py
 
 **Структура хранения**: Изображения организованы по годам и месяцам для удобной навигации и архивирования.
 
-**Telegram интеграция**: Используется Aiogram для отправки изображений. TARGET_CHAT_ID определяет целевой чат/канал.
+**Telegram интеграция**: Используется Aiogram для отправки изображений. TARGET_CHAT_ID определяет целевой чат/канал. `best_image_video_runner.py` также использует Telethon для чтения сообщений и реакций (требуется пользовательская авторизация при первом запуске).
 
 **Динамические промпты**: В `daily_runner.py:67-87` реализована система выбора темы на основе дня месяца (день % 10), что обеспечивает разнообразие контента.
 
@@ -87,6 +107,8 @@ python services/test_availability.py
 Обязательные переменные:
 - `GEMINI_API_KEYS` - список ключей через запятую для ротации
 - `PROXY_URL` - SOCKS5 прокси для доступа к Gemini API
+- `TELETHON_API_ID`, `TELETHON_API_HASH` - Telegram API credentials для Telethon (получить на https://my.telegram.org/auth)
+- `TELETHON_PEER` - ID группы для анализа реакций (используется в `best_image_video_runner.py`)
 - `TELEGRAM_TOKEN` - токен Telegram бота
 - `TARGET_CHAT_ID` - ID чата/канала для публикации
 - `BASE_STORAGE_PATH` - корневая директория для хранения (обычно "storage")
