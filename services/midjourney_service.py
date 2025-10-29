@@ -89,7 +89,7 @@ class MidjourneyService:
         return result
 
     def create_video_task(self, file_url: str, prompt: str = "", motion: str = "high",
-                         video_batch_size: int = 1, task_type: str = "image-to-video") -> dict:
+                         video_batch_size: int = 1, task_type: str = "image-to-video-hd") -> dict:
         """
         Создание задачи генерации видео из изображения.
 
@@ -98,7 +98,7 @@ class MidjourneyService:
             prompt: Опциональный промпт для управления движением
             motion: Уровень движения "low" или "high" (по умолчанию "high")
             video_batch_size: Количество видео для генерации 1, 2 или 4 (по умолчанию 1)
-            task_type: Тип задачи "image-to-video" или "image-to-video-hd"
+            task_type: Тип задачи "image-to-video" или "image-to-video-hd" (по умолчанию "image-to-video-hd")
         """
         url = f"{self.BASE_URL}/generate"
         payload = {
@@ -142,7 +142,7 @@ class MidjourneyService:
                 )
                 logger.error(f"Полный ответ API с ошибкой: {result}")
                 raise Exception(f"Задача {request_id} завершилась с ошибкой: {fail_reason}")
-            time.sleep(5)
+            time.sleep(10)  # Интервал проверки 10 секунд
         raise TimeoutError(f"Задача {request_id} не завершилась за {timeout} секунд.")
 
     def execute_with_retry(self, task_func, task_name: str, max_retries: int = 2, retry_delay: int = 300):
