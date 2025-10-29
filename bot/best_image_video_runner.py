@@ -216,9 +216,9 @@ async def send_best_image_video_story():
                 prompt="gentle movement, cinematic camera motion",
                 motion="high",
                 video_batch_size=1,
-                task_type="image-to-video"
+                task_type="image-to-video-hd"  # HD качество
             ),
-            task_name="image-to-video",
+            task_name="image-to-video-hd",
             max_retries=2,
             retry_delay=300  # 5 минут
         )
