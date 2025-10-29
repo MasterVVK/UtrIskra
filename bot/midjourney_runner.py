@@ -47,17 +47,14 @@ async def send_midjourney_story():
             generated_prompt = generated_prompt.strip()
         logger.info(f"Сгенерированный промпт для Midjourney: {generated_prompt}")
 
-        # Генерация изображения через Midjourney
+        # Генерация изображения через Midjourney с повторными попытками
         logger.info("Генерация изображения через Midjourney...")
-        imagine_task = midjourney_service.create_imagine_task(generated_prompt, aspect_ratio="16:9")
-
-        if "requestId" not in imagine_task:
-            logger.error(f"Ключ 'requestId' отсутствует в ответе: {imagine_task}")
-            raise KeyError("Ключ 'requestId' отсутствует в ответе.")
-
-        request_id = imagine_task["requestId"]
-        logger.info(f"Ожидание завершения задачи Imagine {request_id}...")
-        imagine_result = midjourney_service.wait_for_task_completion(request_id)
+        imagine_result = midjourney_service.execute_with_retry(
+            task_func=lambda: midjourney_service.create_imagine_task(generated_prompt, aspect_ratio="16:9"),
+            task_name="text-to-image",
+            max_retries=2,
+            retry_delay=300  # 5 минут
+        )
 
         # Проверка URL изображения (структура: data.output.collage.image_url)
         grid_image_url = imagine_result.get("data", {}).get("output", {}).get("collage", {}).get("image_url")

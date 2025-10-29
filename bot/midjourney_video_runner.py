@@ -47,17 +47,14 @@ async def send_midjourney_video_story():
             generated_prompt = generated_prompt.strip()
         logger.info(f"Сгенерированный промпт для Midjourney: {generated_prompt}")
 
-        # Шаг 1: Генерация изображения через Midjourney
+        # Шаг 1: Генерация изображения через Midjourney с повторными попытками
         logger.info("Генерация изображения через Midjourney...")
-        imagine_task = midjourney_service.create_imagine_task(generated_prompt, aspect_ratio="16:9")
-
-        if "requestId" not in imagine_task:
-            logger.error(f"Ключ 'requestId' отсутствует в ответе: {imagine_task}")
-            raise KeyError("Ключ 'requestId' отсутствует в ответе.")
-
-        request_id_image = imagine_task["requestId"]
-        logger.info(f"Ожидание завершения задачи генерации изображения {request_id_image}...")
-        imagine_result = midjourney_service.wait_for_task_completion(request_id_image)
+        imagine_result = midjourney_service.execute_with_retry(
+            task_func=lambda: midjourney_service.create_imagine_task(generated_prompt, aspect_ratio="16:9"),
+            task_name="text-to-image для видео",
+            max_retries=2,
+            retry_delay=300  # 5 минут
+        )
 
         # Получаем URL первого изображения из массива images
         images = imagine_result.get("data", {}).get("output", {}).get("images", [])
@@ -85,23 +82,20 @@ async def send_midjourney_video_story():
         await bot.send_photo(chat_id=TARGET_CHAT_ID, photo=FSInputFile(image_path))
         logger.info("Исходное изображение успешно отправлено!")
 
-        # Шаг 2: Создание видео из изображения
+        # Шаг 2: Создание видео из изображения с повторными попытками
         logger.info("Создание видео из изображения...")
-        video_task = midjourney_service.create_video_task(
-            file_url=first_image_url,
-            prompt="gentle movement, cinematic camera motion",
-            motion="high",
-            video_batch_size=1,
-            task_type="image-to-video"
+        video_result = midjourney_service.execute_with_retry(
+            task_func=lambda: midjourney_service.create_video_task(
+                file_url=first_image_url,
+                prompt="gentle movement, cinematic camera motion",
+                motion="high",
+                video_batch_size=1,
+                task_type="image-to-video"
+            ),
+            task_name="image-to-video",
+            max_retries=2,
+            retry_delay=300  # 5 минут
         )
-
-        if "requestId" not in video_task:
-            logger.error(f"Ключ 'requestId' отсутствует в ответе видео: {video_task}")
-            raise KeyError("Ключ 'requestId' отсутствует в ответе видео.")
-
-        request_id_video = video_task["requestId"]
-        logger.info(f"Ожидание завершения задачи генерации видео {request_id_video}...")
-        video_result = midjourney_service.wait_for_task_completion(request_id_video)
 
         # Получаем URL видео
         video_urls = video_result.get("data", {}).get("output", {}).get("video_urls", [])

@@ -1,5 +1,6 @@
 import httpx
 import logging
+import time
 from config import MIDJOURNEY_API_TOKEN
 
 logger = logging.getLogger(__name__)
@@ -125,7 +126,6 @@ class MidjourneyService:
 
     def wait_for_task_completion(self, request_id: str, timeout: int = 300) -> dict:
         """Ожидание завершения задачи."""
-        import time
         start_time = time.time()
         while time.time() - start_time < timeout:
             result = self.get_task_status(request_id)
@@ -144,3 +144,52 @@ class MidjourneyService:
                 raise Exception(f"Задача {request_id} завершилась с ошибкой: {fail_reason}")
             time.sleep(5)
         raise TimeoutError(f"Задача {request_id} не завершилась за {timeout} секунд.")
+
+    def execute_with_retry(self, task_func, task_name: str, max_retries: int = 2, retry_delay: int = 300):
+        """
+        Выполняет задачу с повторными попытками при ошибках.
+
+        Args:
+            task_func: Функция для выполнения (должна возвращать request_id)
+            task_name: Название задачи для логирования
+            max_retries: Максимальное количество попыток (по умолчанию 2: первая + 1 повтор)
+            retry_delay: Задержка между попытками в секундах (по умолчанию 300 = 5 минут)
+
+        Returns:
+            Результат успешного выполнения задачи
+
+        Raises:
+            Exception: Если все попытки исчерпаны
+        """
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.info(f"Попытка {attempt}/{max_retries} для задачи: {task_name}")
+
+                # Выполняем функцию создания задачи
+                task_result = task_func()
+
+                if "requestId" not in task_result:
+                    logger.error(f"Ключ 'requestId' отсутствует в ответе: {task_result}")
+                    raise KeyError("Ключ 'requestId' отсутствует в ответе.")
+
+                request_id = task_result["requestId"]
+                logger.info(f"Ожидание завершения задачи {task_name} (requestId: {request_id})...")
+
+                # Ожидаем завершения
+                result = self.wait_for_task_completion(request_id)
+                logger.info(f"✅ Задача {task_name} успешно завершена!")
+                return result
+
+            except Exception as e:
+                error_message = str(e)
+                logger.error(f"❌ Попытка {attempt}/{max_retries} не удалась: {error_message}")
+
+                # Если это последняя попытка - прокидываем ошибку дальше
+                if attempt >= max_retries:
+                    logger.error(f"🛑 Все попытки ({max_retries}) исчерпаны для задачи: {task_name}")
+                    raise
+
+                # Иначе ждем перед следующей попыткой
+                logger.info(f"⏳ Ожидание {retry_delay} секунд перед следующей попыткой...")
+                time.sleep(retry_delay)
+                logger.info(f"🔄 Начинаем повторную попытку...")
