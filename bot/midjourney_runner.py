@@ -56,8 +56,11 @@ async def send_midjourney_story():
             retry_delay=300  # 5 минут
         )
 
-        # Проверка URL изображения (структура: data.output.collage.image_url)
-        grid_image_url = imagine_result.get("data", {}).get("output", {}).get("collage", {}).get("image_url")
+        # Проверка URL изображения (структура: output.collage.image_url согласно документации)
+        grid_image_url = imagine_result.get("output", {}).get("collage", {}).get("image_url")
+        if not grid_image_url:
+            # Резервный вариант для старой структуры data.output.collage.image_url
+            grid_image_url = imagine_result.get("data", {}).get("output", {}).get("collage", {}).get("image_url")
         if not grid_image_url:
             raise ValueError(f"Не удалось получить URL сетки изображений. Структура ответа: {imagine_result}")
 

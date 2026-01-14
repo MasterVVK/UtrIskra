@@ -35,7 +35,7 @@ class GeminiImageService:
                 api_key = self.api_keys[self.current_key_index]
                 client = genai.Client(api_key=api_key)
 
-                model_name = "gemini-2.5-flash-image-preview"
+                model_name = "gemini-2.5-flash-image"
                 logger.info(f"Запрос на генерацию изображения с моделью {model_name} и промптом: {prompt}")
 
                 response_stream = client.models.generate_content_stream(

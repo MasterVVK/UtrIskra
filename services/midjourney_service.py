@@ -19,6 +19,12 @@ class MidjourneyService:
 
     def create_imagine_task(self, prompt: str, aspect_ratio: str = "1:1", speed: str = "relaxed") -> dict:
         """Создание задачи генерации изображения (text-to-image)."""
+        # Ограничиваем длину промпта (Midjourney имеет лимит ~600 символов)
+        MAX_PROMPT_LENGTH = 600
+        if len(prompt) > MAX_PROMPT_LENGTH:
+            logger.warning(f"Промпт слишком длинный ({len(prompt)} символов), обрезаем до {MAX_PROMPT_LENGTH}")
+            prompt = prompt[:MAX_PROMPT_LENGTH].rsplit(' ', 1)[0]  # Обрезаем до последнего полного слова
+
         url = f"{self.BASE_URL}/generate"
         payload = {
             "taskType": "text-to-image",
@@ -26,6 +32,7 @@ class MidjourneyService:
             "aspectRatio": aspect_ratio,
             "speed": speed
         }
+        logger.info(f"Отправка запроса text-to-image, длина промпта: {len(prompt)} символов")
         response = self.client.post(url, json=payload)
         response.raise_for_status()
         return response.json()

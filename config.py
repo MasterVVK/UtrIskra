@@ -43,4 +43,7 @@ KANDINSKY_SECRET_KEY = os.getenv("KANDINSKY_SECRET_KEY")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+# Qwen Image API
+QWEN_API_URL = os.getenv("QWEN_API_URL", "http://192.168.0.60:8000")
+
 PROMPTS_DIR = os.getenv("PROMPTS_DIR")

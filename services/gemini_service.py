@@ -54,7 +54,8 @@ class GeminiService:
                         #"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-pro-exp-02-05:generateContent",
                         #"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent",
                         #"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent",
-                         "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+                        #"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+                        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent",
                         # "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent",
 
                         params={"key": self.current_key},
