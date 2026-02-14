@@ -8,6 +8,7 @@ from bot.dalle_runner import send_dalle_story
 from bot.flux_runner import send_flux_story
 from bot.yandex_runner import send_yandex_story
 from bot.gemini_image_runner import send_gemini_image_story
+from bot.zimage_runner import send_zimage_story
 import logging
 
 # Настройка логирования
@@ -30,7 +31,7 @@ async def start_scheduler():
     scheduler.add_job(send_gemini_image_story, "cron", hour=13, minute=0)
     scheduler.add_job(send_midjourney_video_story, "cron", hour=14, minute=0)
     scheduler.add_job(send_best_image_video_story, "cron", hour=15, minute=0)
-
+    scheduler.add_job(send_zimage_story, "cron", hour=16, minute=0)
 
     scheduler.start()
     logger.info("Планировщик запущен.")
