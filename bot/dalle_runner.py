@@ -12,7 +12,7 @@ from config import TELEGRAM_TOKEN, TARGET_CHAT_ID, PROMPTS_DIR
 from services.dalle_service import DalleService
 from services.gemini_service import GeminiService
 from utils.database import initialize_database, save_to_database
-from utils.image_utils import add_date_to_image, create_image_path, download_image
+from utils.image_utils import add_date_to_image, create_image_path, download_image, save_image_from_base64
 from utils.prompt_utils import generate_dynamic_prompt
 import logging
 
@@ -43,18 +43,24 @@ async def send_dalle_story():
         logger.info(f"Сгенерированный промпт для DALL·E: {generated_prompt}")
 
         # Генерация изображения через DALL·E
-        image_url = dalle_service.generate_image(
+        image_data, data_type = dalle_service.generate_image(
             prompt=generated_prompt,
-            model="dall-e-3",
-            size="1792x1024",
-            quality="hd",
+#            model="dall-e-3",
+            model="gpt-image-1.5",
+#            size="1792x1024",
+            size="1536x1024",
+#            quality="hd",
+            quality="auto",
             n=1
         )
 
-        # Скачивание изображения
+        # Сохранение изображения
         raw_image_path = create_image_path(prefix="dalle_image")
         logger.info("Сохранение изображения...")
-        download_image(image_url, raw_image_path)
+        if data_type == "b64_json":
+            save_image_from_base64(image_data, raw_image_path)
+        else:
+            download_image(image_data, raw_image_path)
 
         # Добавление даты на изображение
         current_date_text = "D " + datetime.datetime.now().strftime("%d.%m.%Y")

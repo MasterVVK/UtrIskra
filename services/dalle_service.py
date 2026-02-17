@@ -48,10 +48,13 @@ class DalleService:
             )
             response.raise_for_status()
             data = response.json()
-            if "data" in data and len(data["data"]) > 0 and "url" in data["data"][0]:
-                return data["data"][0]["url"]
-            else:
-                raise ValueError("URL изображения отсутствует в ответе DALL·E.")
+            if "data" in data and len(data["data"]) > 0:
+                item = data["data"][0]
+                if "url" in item:
+                    return item["url"], "url"
+                elif "b64_json" in item:
+                    return item["b64_json"], "b64_json"
+            raise ValueError("Изображение отсутствует в ответе DALL·E.")
         except httpx.RequestError as e:
             logger.error(f"Ошибка при подключении к DALL·E API: {e}")
             raise
