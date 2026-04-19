@@ -49,4 +49,7 @@ QWEN_API_URL = os.getenv("QWEN_API_URL", "http://192.168.0.60:8000")
 # Z-Image API
 ZIMAGE_API_URL = os.getenv("ZIMAGE_API_URL", "http://192.168.0.60:8001")
 
+# ERNIE Image API
+ERNIE_API_URL = os.getenv("ERNIE_API_URL", "http://192.168.0.60:8002")
+
 PROMPTS_DIR = os.getenv("PROMPTS_DIR")
