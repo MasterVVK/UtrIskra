@@ -8,6 +8,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from aiogram import Bot
 from aiogram.types import FSInputFile
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiohttp import ClientTimeout
 from config import TELEGRAM_TOKEN, TARGET_CHAT_ID, PROMPTS_DIR
 from services.dalle_service import DalleService
 from services.gemini_service import GeminiService
@@ -25,7 +27,8 @@ async def send_dalle_story():
     """
     Генерация и отправка изображения через DALL·E API.
     """
-    bot = Bot(token=TELEGRAM_TOKEN)
+    session = AiohttpSession(timeout=ClientTimeout(total=300, sock_connect=30, sock_read=300))
+    bot = Bot(token=TELEGRAM_TOKEN, session=session)
     dalle_service = DalleService()
     gemini_service = GeminiService()
 
@@ -75,10 +78,19 @@ async def send_dalle_story():
             image_path=raw_image_path
         )
 
-        # Отправка изображения в Telegram
+        # Отправка изображения в Telegram с retry
         logger.info("Отправка изображения в Telegram...")
-        await bot.send_photo(chat_id=TARGET_CHAT_ID, photo=FSInputFile(raw_image_path))
-        logger.info("Изображение успешно отправлено!")
+        for attempt in range(3):
+            try:
+                await bot.send_photo(chat_id=TARGET_CHAT_ID, photo=FSInputFile(raw_image_path))
+                logger.info("Изображение успешно отправлено!")
+                break
+            except Exception as e:
+                if attempt < 2:
+                    logger.warning(f"Попытка {attempt + 1}/3 не удалась: {e}. Повтор через 10 сек...")
+                    await asyncio.sleep(10)
+                else:
+                    raise
     except Exception as e:
         logger.error(f"Ошибка: {e}")
     finally:
