@@ -52,4 +52,7 @@ ZIMAGE_API_URL = os.getenv("ZIMAGE_API_URL", "http://192.168.0.60:8001")
 # ERNIE Image API
 ERNIE_API_URL = os.getenv("ERNIE_API_URL", "http://192.168.0.60:8002")
 
+# HiDream-O1-Image API
+HIDREAM_API_URL = os.getenv("HIDREAM_API_URL", "http://192.168.0.60:8003")
+
 PROMPTS_DIR = os.getenv("PROMPTS_DIR")

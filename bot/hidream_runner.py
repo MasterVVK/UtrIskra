@@ -11,64 +11,56 @@ from aiogram.types import FSInputFile
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiohttp import ClientTimeout
 from config import TELEGRAM_TOKEN, TARGET_CHAT_ID, PROMPTS_DIR
-from services.dalle_service import DalleService
+from services.hidream_service import HiDreamService
 from services.gemini_service import GeminiService
 from utils.database import initialize_database, save_to_database
-from utils.image_utils import add_date_to_image, create_image_path, download_image, save_image_from_base64
+from utils.image_utils import add_date_to_image, create_image_path, download_image
 from utils.prompt_utils import generate_dynamic_prompt
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-PROMPTS_FILE = os.path.join(PROMPTS_DIR, "dalle_runner.txt")  # Формируем путь к файлу промптов
+PROMPTS_FILE = os.path.join(PROMPTS_DIR, "hidream_runner.txt")
 
-async def send_dalle_story():
+
+async def send_hidream_story():
     """
-    Генерация и отправка изображения через DALL·E API.
+    Генерация и отправка изображения через HiDream-O1-Image API.
     """
     session = AiohttpSession(timeout=ClientTimeout(total=300, sock_connect=30, sock_read=300))
     bot = Bot(token=TELEGRAM_TOKEN, session=session)
-    dalle_service = DalleService()
+    hidream_service = HiDreamService()
     gemini_service = GeminiService()
 
     try:
         # Читаем промпты из файла
         system_prompt, user_prompt = generate_dynamic_prompt(PROMPTS_FILE)
 
-        logger.info(f"Генерация текста через Gemini с промптом: {user_prompt}")
+        logger.info(f"Генерация текста через Gemini Pro: {user_prompt}")
         generated_prompt = gemini_service.generate_prompt(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            temperature=1.0
+            temperature=0.7
         )
 
-        logger.info(f"Сгенерированный промпт для DALL·E: {generated_prompt}")
+        logger.info(f"Сгенерированный промпт для HiDream: {generated_prompt}")
 
-        # Генерация изображения через DALL·E
-        image_data, data_type = dalle_service.generate_image(
+        # Генерация изображения через HiDream API
+        logger.info("Генерация изображения через HiDream...")
+        image_url = await hidream_service.generate_image(
             prompt=generated_prompt,
-#            model="dall-e-3",
-            #model="gpt-image-1.5",
-            model="gpt-image-2",
-            # size="1792x1024",
-            size="1536x1024",
-#            quality="hd",
-            quality="auto",
-            n=1
+            aspect_ratio="16:9",
+            use_pe=True,
         )
 
-        # Сохранение изображения
-        raw_image_path = create_image_path(prefix="dalle_image")
-        logger.info("Сохранение изображения...")
-        if data_type == "b64_json":
-            save_image_from_base64(image_data, raw_image_path)
-        else:
-            download_image(image_data, raw_image_path)
+        # Скачивание изображения
+        image_path = create_image_path(prefix="hidream_story")
+        download_image(image_url, image_path)
 
-        # Добавление даты на изображение
-        current_date_text = "D " + datetime.datetime.now().strftime("%d.%m.%Y")
-        add_date_to_image(raw_image_path, current_date_text)
+        # Добавление водяного знака с датой
+        current_date_text = "H " + datetime.datetime.now().strftime("%d.%m.%Y")
+        add_date_to_image(image_path, current_date_text)
 
         # Сохранение в базу данных
         save_to_database(
@@ -76,14 +68,14 @@ async def send_dalle_story():
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             generated_prompt=generated_prompt,
-            image_path=raw_image_path
+            image_path=image_path
         )
 
         # Отправка изображения в Telegram с retry
         logger.info("Отправка изображения в Telegram...")
         for attempt in range(3):
             try:
-                await bot.send_photo(chat_id=TARGET_CHAT_ID, photo=FSInputFile(raw_image_path))
+                await bot.send_photo(chat_id=TARGET_CHAT_ID, photo=FSInputFile(image_path))
                 logger.info("Изображение успешно отправлено!")
                 break
             except Exception as e:
@@ -97,6 +89,7 @@ async def send_dalle_story():
     finally:
         await bot.session.close()
 
+
 if __name__ == "__main__":
     initialize_database()
-    asyncio.run(send_dalle_story())
+    asyncio.run(send_hidream_story())
