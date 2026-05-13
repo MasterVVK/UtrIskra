@@ -5,10 +5,11 @@ import random
 
 logger = logging.getLogger(__name__)  # Устанавливаем логгер для текущего модуля
 
-def generate_dynamic_prompt(prompts_file: str) -> tuple:
+def generate_dynamic_prompt(prompts_file: str, max_theme: int = 10) -> tuple:
     """
     Читает системный и пользовательский промпт из файла с многострочным форматом.
     :param prompts_file: Путь к файлу с промптами.
+    :param max_theme: Верхняя граница диапазона для {random_theme} (включительно).
     :return: Кортеж (system_prompt, user_prompt).
     """
     try:
@@ -27,7 +28,7 @@ def generate_dynamic_prompt(prompts_file: str) -> tuple:
 
         # Заменяем {current_date} в пользовательском промпте
         current_date = datetime.datetime.now().strftime("%d %B %Y")
-        random_theme = str(random.randint(1,10))
+        random_theme = str(random.randint(1, max_theme))
         user_prompt = user_prompt.replace("{current_date}", current_date)
         user_prompt = user_prompt.replace("{random_theme}", random_theme)
 
