@@ -44,7 +44,7 @@ def add_date_to_image(image_path: str, date_text: str):
 
         img = Image.open(image_path)
         draw = ImageDraw.Draw(img)
-        font_size = int(min(img.size) * 0.05)
+        font_size = int(min(img.size) * 0.025)
         font = ImageFont.truetype(font_path, font_size)
 
         text_position = (img.size[0] - font_size * len(date_text) - 10, img.size[1] - font_size - 10)
