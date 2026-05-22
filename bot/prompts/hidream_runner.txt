@@ -6,7 +6,22 @@
 
 — НЕ ДОБАВЛЯЙ САМ quality-теги ("8K", "masterpiece", "best quality", "ultra detailed", "ray-traced") — rewriter добавит автоматически.
 — ДЛЯ МИНИМАЛИСТИЧНЫХ/СОЗЕРЦАТЕЛЬНЫХ стилей (wabi-sabi, zen, ma, minimalism, haiku, Hiroshige silence, mono no aware, ascetic) — ВСТАВЬ в текст промпта прямые запреты: "no floating particles, no dust motes, no light rays, no lens flare, perfect stillness, empty negative space". Rewriter обязан соблюдать прямые запреты — это защитит созерцательность от его эффектов.
-— ДЛЯ ИМЕНОВАННЫХ арт-направлений (если в концепции явно фигурирует имя художника или название направления — Caspar David Friedrich, Turner, Bierstadt, Hudson River School, Beksiński, Miyazaki/Ghibli, Ukiyo-e, Hokusai, art nouveau, WPA poster, Bauhaus и т.п.) — НАЗОВИ стиль ДВАЖДЫ (в первом предложении и в финале, например "rendered in X style ... in the tradition of X"), и опиши ОДИН каноничный визуальный признак направления. Это якорит стиль ПОСЛЕ рерайта rewriter'а.
+— ДЛЯ ИМЕНОВАННЫХ арт-направлений (если в концепции явно фигурирует имя художника или название направления) — НАЗОВИ стиль ДВАЖДЫ (в первом предложении и в финале, например "rendered in X style ... in the tradition of X"), и опиши ОДИН каноничный визуальный признак направления. Это якорит стиль ПОСЛЕ рерайта rewriter'а. Чтобы избежать смещения к одному и тому же направлению (часто Ukiyo-e), активно выбирай из ШИРОКОГО спектра, например:
+  • европейская живопись разных эпох: Caspar David Friedrich, J.M.W. Turner, John Constable, Albert Bierstadt, Hudson River School, Frederic Church, Thomas Cole, Pre-Raphaelite (Millais, Rossetti, Burne-Jones), Symbolism (Böcklin, Khnopff, Redon, Moreau), Vrubel, Vasnetsov, Levitan, Shishkin, Kuindzhi, Repin, Surikov;
+  • импрессионизм/постимпрессионизм/модерн: Monet, Pissarro, Sisley, Degas, Cézanne, Van Gogh, Gauguin, Seurat, Bonnard, Vuillard, Toulouse-Lautrec, Klimt, Schiele, Mucha (art nouveau), Vienna Secession, Jugendstil;
+  • экспрессионизм/авангард: Munch, Kirchner, Nolde, Beckmann, Kandinsky, Malevich (Suprematism), Rodchenko (Constructivism), El Lissitzky, Tatlin, Chagall, Kahlo, Rivera (Mexican muralism), Orozco, Siqueiros;
+  • сюр и метафизика: Magritte, de Chirico, Tanguy, Delvaux, Dalí (умеренно), Carrington, Varo, Beksiński, Zdzisław, Ernst, Toyen;
+  • американская сцена и реализм: Edward Hopper, Andrew Wyeth, Grant Wood, Thomas Hart Benton, Norman Rockwell, N.C. Wyeth, Howard Pyle, Maxfield Parrish, brandywine school, Ash Can School;
+  • цветополе и абстракция: Rothko, Newman, Still, Diebenkorn, Agnes Martin, Helen Frankenthaler, Morris Louis, Hilma af Klint;
+  • иллюстраторы/графика: Arthur Rackham, Edmund Dulac, Kay Nielsen, Ivan Bilibin, Harry Clarke, Aubrey Beardsley, Alphonse Mucha, Erté, Tove Jansson, Quentin Blake, Edward Gorey, Charley Harper, Saul Steinberg, Moebius (Giraud), Druillet, Bilal, Schuiten;
+  • аниме/анимация: Miyazaki/Ghibli, Takahata, Satoshi Kon, Mamoru Hosoda, Makoto Shinkai, Yoshitaka Amano, Yoshitoshi Abe, Eyvind Earle, UPA studio, Disney golden age, Fleischer studios, Soyuzmultfilm, Yuri Norstein;
+  • плакат и дизайн XX в.: WPA poster, Bauhaus, De Stijl (Mondrian, van Doesburg), Russian avant-garde poster, Cassandre, Stenberg brothers, Saul Bass, Push Pin Studio, Polish poster school (Tomaszewski, Świerzy);
+  • восточно-азиатские традиции (помимо Ukiyo-e): Chinese shanshui (Fan Kuan, Guo Xi, Mi Fu, Bada Shanren, Shitao), литерати-живопись, gongbi, Korean minhwa, Korean folk painting, Japanese sumi-e/Sesshū Tōyō, Rinpa school (Kōrin, Sōtatsu), Sōsaku-hanga, Shin-hanga (Hasui, Yoshida), Heian-era e-maki, Tang dynasty murals, Dunhuang, Vietnamese silk painting;
+  • южно/центрально/исламо-азиатские: Persian miniature, Safavid, Qajar, Mughal miniature, Rajput, Pahari, Kalighat, Madhubani, Pattachitra, Tibetan thangka, Bhutanese, Mongol scroll;
+  • африканские/океанические/латиноамериканские: Ethiopian icon painting, Coptic art, Adinkra-symbolism graphics, Ndebele wall painting, Aboriginal dot painting, Maori carving aesthetics, Pre-Columbian codex, Mayan mural, Aztec codex, Andean textiles, Cuzco school;
+  • русская/византийская сакральная: Russian icon painting (Rublev, Theophanes the Greek, Dionisius), Byzantine mosaic, Romanesque illuminated manuscripts, Книга Кельтов / Insular manuscript, Ottonian, Carolingian;
+  • современные направления: solarpunk illustration, dieselpunk, atompunk, cassette futurism, vaporwave, retrofuturism, brutalism, mid-century modern, outsider art (Henry Darger, Adolf Wölfli), naïve art (Rousseau, Pirosmani), gouache children's-book illustration, риsо printing, ботаническая иллюстрация (Redouté, Ehret), медицинский атлас Везалия, Haeckel zoological plates, Audubon birds.
+Не ограничивайся этим списком — он лишь страховка от повторов; смело используй другие имена и направления.
 
 Модель понимает: описание освещения, цветовых палитр, композиции, арт-стилей, эмоций. Прямо описывай тишину, отсутствие и пустоту, если они нужны.
 
@@ -41,7 +56,7 @@
 Шаг 2 (внутренний, не выводи): Выбери концепцию под номером {random_theme} (диапазон [1, 50]). Классифицируй её: MINIMALIST (wabi-sabi/zen/ma/ascetic/созерцательная), NAMED-STYLE (есть имя художника или направления), либо REGULAR.
 
 Шаг 3 (выведи только это): Составь готовый промпт для HiDream-O1-Image:
-— Включи: сцену и ландшафт, точку зрения, направление и характер освещения, цветовую палитру и атмосферу, ТОНКИЙ сюрреальный элемент (одна короткая фраза, не центр кадра — деталь на периферии или в полутени, которую глаз ловит со второго взгляда), эмоциональный подтекст.
+— Включи: сцену и ландшафт, точку зрения, направление и характер освещения, цветовую палитру и атмосферу, ТОНКИЙ загадочный элемент (одна короткая фраза, не центр кадра — деталь на периферии или в полутени, которую глаз ловит со второго взгляда), эмоциональный подтекст.
 — Если MINIMALIST → добавь явные запреты на dust motes, particles, light rays, lens flare; включи фразы "perfect stillness" / "empty negative space".
 — Если NAMED-STYLE → упомяни имя стиля/художника в начале И в конце промпта, опиши один каноничный визуальный признак этого направления.
 — Если REGULAR → обычная подача.

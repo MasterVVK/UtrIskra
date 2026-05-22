@@ -13,7 +13,7 @@
 
 Модель понимает: описание освещения, цветовых палитр, композиции, арт-стилей, эмоций, текста в кадре, пространственных отношений. Прямо описывай тишину, отсутствие и пустоту, если они нужны.
 
-Фокус: субъект, настроение, атмосфера, один необычный/сюрреальный элемент.
+Фокус: субъект, настроение, атмосфера, один загадочный едва уловимый элемент.
 
 Английский, 3–6 предложений, образный и конкретный.
 ---END_SYSTEM_PROMPT---
@@ -25,7 +25,23 @@
 
 Старайся, чтобы среди 50 концепций были РАЗНЫЕ по каждой оси:
 
-— **Жанр / арт-направление / техника** (примеры для затравки, не ограничивайся): романтизм, solarpunk, dark academia, Миядзаки/Ghibli, Бексиньский, Hudson River School, wabi-sabi, impressionism, фэнтези, Bauhaus, art nouveau, Ukiyo-e, Hokusai, Caspar David Friedrich, J.M.W. Turner, Albert Bierstadt, Frazetta, Moebius, Schiele, Klimt, Rothko, Hopper, Magritte, de Chirico, sumi-e, Sōsaku-hanga, mingei, Russian icon painting, иконопись, Persian miniature, Mughal miniature, Mexican muralism, Bauhaus poster, Dieselpunk, Atompunk, Cassettefuturism, vaporwave, brutalist architecture, Pre-Raphaelite, Symbolism, Suprematism, Constructivism, biopunk, Heian-era scroll painting, mountain shanshui, Tibetan thangka, аутсайдер-арт, naïve art, gouache illustration, charcoal sketch, copperplate engraving, woodblock print, watercolor wash, oil impasto, gouache, риsо printing, ботаническая иллюстрация XIX века, медицинский атлас Везалия — и любые редкие направления, о которых ты знаешь.
+— **Жанр / арт-направление / техника** (примеры для затравки, не ограничивайся). Чтобы избежать смещения к одному и тому же направлению (часто Ukiyo-e), активно выбирай из ШИРОКОГО спектра, например:
+  • европейская живопись разных эпох: Caspar David Friedrich, J.M.W. Turner, John Constable, Albert Bierstadt, Hudson River School, Frederic Church, Thomas Cole, Pre-Raphaelite (Millais, Rossetti, Burne-Jones), Symbolism (Böcklin, Khnopff, Redon, Moreau), Vrubel, Vasnetsov, Levitan, Shishkin, Kuindzhi, Repin, Surikov;
+  • импрессионизм/постимпрессионизм/модерн: Monet, Pissarro, Sisley, Degas, Cézanne, Van Gogh, Gauguin, Seurat, Bonnard, Vuillard, Toulouse-Lautrec, Klimt, Schiele, Mucha (art nouveau), Vienna Secession, Jugendstil;
+  • экспрессионизм/авангард: Munch, Kirchner, Nolde, Beckmann, Kandinsky, Malevich (Suprematism), Rodchenko (Constructivism), El Lissitzky, Tatlin, Chagall, Kahlo, Rivera (Mexican muralism), Orozco, Siqueiros;
+  • сюр и метафизика: Magritte, de Chirico, Tanguy, Delvaux, Dalí (умеренно), Carrington, Varo, Beksiński, Zdzisław, Ernst, Toyen;
+  • американская сцена и реализм: Edward Hopper, Andrew Wyeth, Grant Wood, Thomas Hart Benton, Norman Rockwell, N.C. Wyeth, Howard Pyle, Maxfield Parrish, brandywine school, Ash Can School;
+  • цветополе и абстракция: Rothko, Newman, Still, Diebenkorn, Agnes Martin, Helen Frankenthaler, Morris Louis, Hilma af Klint;
+  • иллюстраторы/графика: Arthur Rackham, Edmund Dulac, Kay Nielsen, Ivan Bilibin, Harry Clarke, Aubrey Beardsley, Alphonse Mucha, Erté, Tove Jansson, Quentin Blake, Edward Gorey, Charley Harper, Saul Steinberg, Moebius (Giraud), Druillet, Bilal, Schuiten, Frazetta;
+  • аниме/анимация: Miyazaki/Ghibli, Takahata, Satoshi Kon, Mamoru Hosoda, Makoto Shinkai, Yoshitaka Amano, Yoshitoshi Abe, Eyvind Earle, UPA studio, Disney golden age, Fleischer studios, Soyuzmultfilm, Yuri Norstein;
+  • плакат и дизайн XX в.: WPA poster, Bauhaus, De Stijl (Mondrian, van Doesburg), Russian avant-garde poster, Cassandre, Stenberg brothers, Saul Bass, Push Pin Studio, Polish poster school (Tomaszewski, Świerzy);
+  • восточно-азиатские традиции (помимо Ukiyo-e): Chinese shanshui (Fan Kuan, Guo Xi, Mi Fu, Bada Shanren, Shitao), литерати-живопись, gongbi, Korean minhwa, Korean folk painting, Japanese sumi-e/Sesshū Tōyō, Rinpa school (Kōrin, Sōtatsu), Sōsaku-hanga, Shin-hanga (Hasui, Yoshida), Heian-era e-maki, Tang dynasty murals, Dunhuang, Vietnamese silk painting, mingei;
+  • южно/центрально/исламо-азиатские: Persian miniature, Safavid, Qajar, Mughal miniature, Rajput, Pahari, Kalighat, Madhubani, Pattachitra, Tibetan thangka, Bhutanese, Mongol scroll;
+  • африканские/океанические/латиноамериканские: Ethiopian icon painting, Coptic art, Adinkra-symbolism graphics, Ndebele wall painting, Aboriginal dot painting, Maori carving aesthetics, Pre-Columbian codex, Mayan mural, Aztec codex, Andean textiles, Cuzco school;
+  • русская/византийская сакральная: Russian icon painting / иконопись (Rublev, Theophanes the Greek, Dionisius), Byzantine mosaic, Romanesque illuminated manuscripts, Книга Кельтов / Insular manuscript, Ottonian, Carolingian;
+  • современные направления и эстетики: solarpunk, dark academia, dieselpunk, atompunk, cassette futurism, vaporwave, retrofuturism, brutalist architecture, biopunk, mid-century modern, outsider art / аутсайдер-арт (Henry Darger, Adolf Wölfli), naïve art (Rousseau, Pirosmani), wabi-sabi, fantasy;
+  • техники как самостоятельные ориентиры: gouache illustration, charcoal sketch, copperplate engraving, woodblock print, watercolor wash, oil impasto, sumi-e ink wash, риsо printing, ботаническая иллюстрация XIX века (Redouté, Ehret), медицинский атлас Везалия, Haeckel zoological plates, Audubon birds.
+Не ограничивайся этим списком — он лишь страховка от повторов; смело используй другие имена и направления.
 
 — **Точка зрения / ракурс**: вид снизу из травы, с птичьего полёта, через мутное окно, отражение в воде/металле/глазу, из глубины пещеры наружу, макро-взгляд на каплю, изнутри предмета (бокала, кристалла, листа), сверху-вниз по узкому колодцу, сквозь призму/линзу, через старую киноплёнку, изометрический cutaway, медицинская иллюстрация в разрезе, схема в стиле древней карты, портрет из-за плеча, dutch angle, fish-eye, через дверной глазок, через капли дождя на стекле, из подводной глубины смотря вверх — и любые другие, которые сам придумаешь.
 
@@ -33,7 +49,7 @@
 
 — **Цветовая палитра**: глубокий тил с серебром, ржавая охра с угольным, lavender + bone, dusty rose + dark green, кобальт с золотом, monochrome charcoal, выцветшие сепии, ядовитый зелёный + индиго, кораллово-оранжевый закат + бирюза, gris-grey + warm cream, royal purple + tarnished gold, alabaster + jet, и любые редкие сочетания.
 
-— **Сюрреальный/загадочный элемент — ТОНКИЙ, СЕМАНТИЧЕСКИЙ** (один на концепцию, читается как осознанный замысел художника, а не дефект): окно или дверной проём показывает не то, что должно быть за ним (зимний лес за окном летней комнаты, морской прибой за дверью городской квартиры, ночное небо за окном в полдень); зеркало или отражение в витрине показывает иное время года / иное освещение / иное помещение; тень предмета имеет другую форму, чем сам предмет (тень чашки — птица; тень книги — лестница); атмосферная аномалия, локализованная в одном участке кадра (снег идёт только над одним столом; туман стелется только в одном углу; дождь падает строго в одном круге пола); материал «не тот», но решённый как ОСМЫСЛЕННАЯ художественная находка (ваза наполнена туманом вместо воды; свеча горит водой; книга проросла мхом; чайник, в котором плавают облака вместо чая); скромный анахронизм (одна современная вещь в исторической сцене или наоборот — мобильный телефон на столе у писаря XVII века, керосиновая лампа в офисе open-space); часы без стрелок или с одной стрелкой, или показывающие невозможное число; одинокая дверь в открытом поле, не ведущая никуда; небольшой предмет, парящий в нескольких сантиметрах над поверхностью (чашка, лист, перо) — но именно небольшой, не нарушающий гравитацию всей сцены.
+— **Сюрреальный/загадочный элемент — ТОНКИЙ, СЕМАНТИЧЕСКИЙ** (один на концепцию, читается как осознанный замысел художника, а не дефект).
 
 ИЗБЕГАЙ:
 — **AI-glitch образов**: лишних пальцев, отсутствующих/лишних конечностей, дублирующих лиц, искажённой анатомии, лишних/недостающих этажей в зданиях, повторяющихся одинаковых людей или облаков, обрывающихся в пустоту следов, нарушенной геометрии — всё это зритель прочитает как ошибку генерации, а не как замысел;
@@ -49,8 +65,7 @@
 
 Шаг 3 (выведи только это): Составь готовый промпт для gpt-image-2:
 — Прямо назови технику/материал (живопись маслом, тушь, woodblock, гуашь, акварель, гравюра, плакат, CG — что соответствует концепции).
-— Включи: сцену и ландшафт, точку зрения, направление и характер освещения, цветовую палитру и атмосферу, ТОНКИЙ сюрреальный элемент (одна короткая фраза, не центр кадра — деталь на периферии или в полутени, которую глаз ловит со второго взгляда), эмоциональный подтекст.
-— Если по концепции уместен текст в кадре — впиши его прямо в кавычках в нужном месте сцены (например: a weathered enamel sign reading "STILL OPEN" leans against the wall).
+— Включи: сцену и ландшафт, точку зрения, направление и характер освещения, цветовую палитру и атмосферу, ТОНКИЙ, едва уловимый загадочный элемент, эмоциональный подтекст.
 — Композицию подавай горизонтально (landscape).
 
 Английский, 3–6 предложений. Без generic quality-тегов.

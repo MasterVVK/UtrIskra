@@ -5,7 +5,7 @@
 Особенности ERNIE-Image, которые ты должен учитывать при составлении промпта:
 — Модель имеет встроенный Prompt Enhancer (LLM), который автоматически расширяет промпт техническими деталями. Поэтому НЕ добавляй теги качества ("8K", "masterpiece", "best quality", "ultra detailed") — они будут добавлены автоматически.
 — Модель отлично понимает: описания освещения, цветовые палитры, композиционные указания, арт-стили и эмоциональную атмосферу.
-— Фокусируйся на творческом видении: субъект, настроение, атмосфера, один необычный/сюрреальный элемент.
+— Фокусируйся на творческом видении: субъект, настроение, атмосфера, один загадочный едва уловимый элемент.
 — Промпт должен быть на английском, 3–6 предложений, образный и конкретный.
 ---END_SYSTEM_PROMPT---
 
@@ -18,7 +18,22 @@
 
 Каждая концепция должна включать ВСЕ оси ниже, и среди 50 концепций пусть они будут максимально разнообразными:
 
-— **Жанр / арт-направление / техника**: любое из всей мировой истории искусства — от античности до современности, от западного канона до азиатских, исламских, латиноамериканских, африканских традиций, включая редкие и нишевые направления. Прямо называй технику и материал, выбранные под смысл концепции.
+— **Жанр / арт-направление / техника**: любое из всей мировой истории искусства — от античности до современности, от западного канона до азиатских, исламских, латиноамериканских, африканских традиций, включая редкие и нишевые направления. Прямо называй технику и материал, выбранные под смысл концепции. Чтобы избежать смещения к одному и тому же направлению (часто Ukiyo-e), активно выбирай из ШИРОКОГО спектра, например:
+  • европейская живопись разных эпох: Caspar David Friedrich, J.M.W. Turner, John Constable, Albert Bierstadt, Hudson River School, Frederic Church, Thomas Cole, Pre-Raphaelite (Millais, Rossetti, Burne-Jones), Symbolism (Böcklin, Khnopff, Redon, Moreau), Vrubel, Vasnetsov, Levitan, Shishkin, Kuindzhi, Repin, Surikov;
+  • импрессионизм/постимпрессионизм/модерн: Monet, Pissarro, Sisley, Degas, Cézanne, Van Gogh, Gauguin, Seurat, Bonnard, Vuillard, Toulouse-Lautrec, Klimt, Schiele, Mucha (art nouveau), Vienna Secession, Jugendstil;
+  • экспрессионизм/авангард: Munch, Kirchner, Nolde, Beckmann, Kandinsky, Malevich (Suprematism), Rodchenko (Constructivism), El Lissitzky, Tatlin, Chagall, Kahlo, Rivera (Mexican muralism), Orozco, Siqueiros;
+  • сюр и метафизика: Magritte, de Chirico, Tanguy, Delvaux, Dalí (умеренно), Carrington, Varo, Beksiński, Zdzisław, Ernst, Toyen;
+  • американская сцена и реализм: Edward Hopper, Andrew Wyeth, Grant Wood, Thomas Hart Benton, Norman Rockwell, N.C. Wyeth, Howard Pyle, Maxfield Parrish, brandywine school, Ash Can School;
+  • цветополе и абстракция: Rothko, Newman, Still, Diebenkorn, Agnes Martin, Helen Frankenthaler, Morris Louis, Hilma af Klint;
+  • иллюстраторы/графика: Arthur Rackham, Edmund Dulac, Kay Nielsen, Ivan Bilibin, Harry Clarke, Aubrey Beardsley, Alphonse Mucha, Erté, Tove Jansson, Quentin Blake, Edward Gorey, Charley Harper, Saul Steinberg, Moebius (Giraud), Druillet, Bilal, Schuiten;
+  • аниме/анимация: Miyazaki/Ghibli, Takahata, Satoshi Kon, Mamoru Hosoda, Makoto Shinkai, Yoshitaka Amano, Yoshitoshi Abe, Eyvind Earle, UPA studio, Disney golden age, Fleischer studios, Soyuzmultfilm, Yuri Norstein;
+  • плакат и дизайн XX в.: WPA poster, Bauhaus, De Stijl (Mondrian, van Doesburg), Russian avant-garde poster, Cassandre, Stenberg brothers, Saul Bass, Push Pin Studio, Polish poster school (Tomaszewski, Świerzy);
+  • восточно-азиатские традиции (помимо Ukiyo-e): Chinese shanshui (Fan Kuan, Guo Xi, Mi Fu, Bada Shanren, Shitao), литерати-живопись, gongbi, Korean minhwa, Korean folk painting, Japanese sumi-e/Sesshū Tōyō, Rinpa school (Kōrin, Sōtatsu), Sōsaku-hanga, Shin-hanga (Hasui, Yoshida), Heian-era e-maki, Tang dynasty murals, Dunhuang, Vietnamese silk painting;
+  • южно/центрально/исламо-азиатские: Persian miniature, Safavid, Qajar, Mughal miniature, Rajput, Pahari, Kalighat, Madhubani, Pattachitra, Tibetan thangka, Bhutanese, Mongol scroll;
+  • африканские/океанические/латиноамериканские: Ethiopian icon painting, Coptic art, Adinkra-symbolism graphics, Ndebele wall painting, Aboriginal dot painting, Maori carving aesthetics, Pre-Columbian codex, Mayan mural, Aztec codex, Andean textiles, Cuzco school;
+  • русская/византийская сакральная: Russian icon painting (Rublev, Theophanes the Greek, Dionisius), Byzantine mosaic, Romanesque illuminated manuscripts, Книга Кельтов / Insular manuscript, Ottonian, Carolingian;
+  • современные направления: solarpunk illustration, dieselpunk, atompunk, cassette futurism, vaporwave, retrofuturism, brutalism, mid-century modern, outsider art (Henry Darger, Adolf Wölfli), naïve art (Rousseau, Pirosmani), gouache children's-book illustration, риsо printing, ботаническая иллюстрация (Redouté, Ehret), медицинский атлас Везалия, Haeckel zoological plates, Audubon birds.
+Не ограничивайся этим списком — он лишь страховка от повторов; смело используй другие имена и направления.
 
 — **Точка зрения / ракурс**: нестандартная и осознанно выбранная под концепцию — такая, что сама становится выразительным средством. Активно ищи редкие точки зрения, а не повторяй очевидные.
 
@@ -26,7 +41,7 @@
 
 — **Цветовая палитра**: конкретное продуманное сочетание из 2–4 основных цветов, описанных точно (с фактурой и оттенком, а не общими названиями). Палитра работает на эмоцию.
 
-— **Один ТОНКИЙ, СЕМАНТИЧЕСКИЙ, едва заметный элемент (читается как осознанный замысел художника, а НЕ как баг нейросети и НЕ как громкая сюрреалистическая конструкция). РАЗНООБРАЗИЕ обязательно — не повторяй один и тот же тип изо дня в день. Активно изобретай новые типы смещения. Допустимые направления (но не ограничивайся ими): окно/дверной проём показывает не то, что должно быть за ним; зеркало или отражение показывает иное время года или иное помещение; тень предмета имеет другую форму, чем сам предмет; атмосферная аномалия, локализованная в одном участке кадра; материал «не тот» как осмысленная находка; скромный анахронизм; часы без стрелок или с невозможным числом; одинокая дверь в открытом поле; небольшой предмет, парящий в нескольких сантиметрах над поверхностью; шов между двумя реальностями в одной детали.
+— **Один ТОНКИЙ, ЗАГАДОЧНЫЙ, едва уловимый элемент (читается как осознанный замысел художника, а НЕ как баг нейросети и НЕ как громкая сюрреалистическая конструкция). РАЗНООБРАЗИЕ обязательно. Активно изобретай новые типы смещения.
 ИЗБЕГАЙ AI-glitch образов: лишних пальцев, лишних/отсутствующих конечностей, дублирующих лиц, искажённой анатомии, лишних этажей в зданиях, повторяющихся одинаковых людей или облаков, обрывающихся в пустоту следов, нарушенной геометрии — зритель прочитает как ошибку генерации.
 ИЗБЕГАЙ громких сюрреалистических конструкций: гигантских стеклянных куполов или контейнеров с микромиром внутри, парящих островов, перевёрнутых океанов, деревьев растущих из облаков, северного сияния из бабочек, голографических знаков на руинах, явных нарушений гравитации на всю сцену.
 
@@ -34,7 +49,7 @@
 
 Шаг 2 (внутренний, не выводи): Выбери концепцию под номером {random_theme} (диапазон [1, 50]).
 
-Шаг 3 (выведи только это): Составь готовый промпт для ERNIE-Image на основе выбранной концепции. Включи: сцену и ландшафт, точку зрения, направление и характер освещения, цветовую палитру и атмосферу, ТОНКИЙ загадочный едва заметный элемент (одна короткая фраза, не центр кадра — деталь на периферии или в полутени, которую глаз ловит со второго взгляда), эмоциональный подтекст.
+Шаг 3 (выведи только это): Составь готовый промпт для ERNIE-Image на основе выбранной концепции. Включи: сцену и ландшафт, точку зрения, направление и характер освещения, цветовую палитру и атмосферу, ТОНКИЙ загадочный едва уловимый элемент, эмоциональный подтекст.
 
 Промпт на английском языке, 3–6 предложений. Без технических тегов качества.
 ---END_USER_PROMPT---
