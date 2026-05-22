@@ -1,81 +1,78 @@
-import os
-import base64
-import requests
 import logging
-import time
-import random
-from config import FOLDER_ID, OAUTH_TOKEN
+
+import httpx
+
+from config import FOLDER_ID, YANDEX_API_KEY
 
 logger = logging.getLogger(__name__)
 
+
 class YandexArtService:
-    """Класс для взаимодействия с Yandex-Art API."""
-    def __init__(self):
-        self.iam_token = None
-        self.max_prompt_length = 500  # Максимальная длина текста для API
+    """Класс для взаимодействия с Yandex AI Studio Images API (модель aliceai-image-art-3.0)."""
 
-    def update_iam_token(self):
-        """Обновляет IAM-токен для Yandex Cloud."""
-        try:
-            url = "https://iam.api.cloud.yandex.net/iam/v1/tokens"
-            headers = {"Content-Type": "application/json"}
-            data = {"yandexPassportOauthToken": OAUTH_TOKEN}
+    API_URL = "https://ai.api.cloud.yandex.net/v1/images/generations"
+    MODEL = "aliceai-image-art-3.0/latest"
+    MAX_PROMPT_LENGTH = 500
 
-            response = requests.post(url, headers=headers, json=data)
-            response.raise_for_status()
-            self.iam_token = response.json().get("iamToken")
-            logger.info("IAM-токен успешно обновлен")
-        except Exception as e:
-            logger.error(f"Ошибка при обновлении IAM-токена: {e}")
-            raise
+    def __init__(self, timeout: int = 120):
+        if not YANDEX_API_KEY:
+            raise ValueError("YANDEX_API_KEY отсутствует. Проверьте файл .env.")
+        if not FOLDER_ID:
+            raise ValueError("FOLDER_ID отсутствует. Проверьте файл .env.")
+
+        self.client = httpx.Client(timeout=httpx.Timeout(timeout))
+
+    @staticmethod
+    def _truncate_to_sentence(text: str, limit: int) -> str:
+        if len(text) <= limit:
+            return text
+        prefix = text[:limit]
+        boundary = max(prefix.rfind("."), prefix.rfind("!"),
+                       prefix.rfind("?"), prefix.rfind("…"))
+        if boundary > limit // 2:
+            return prefix[: boundary + 1].rstrip()
+        return prefix.rstrip()
 
     def generate_image(self, prompt: str) -> str:
         """
-        Генерирует изображение через Yandex-Art API и возвращает Base64-данные.
+        Генерирует изображение через Yandex Images API (OpenAI-совместимый endpoint).
         :param prompt: Текстовый запрос для генерации изображения.
         :return: Base64 строка изображения.
         """
-        if not self.iam_token:
-            self.update_iam_token()
+        if len(prompt) > self.MAX_PROMPT_LENGTH:
+            original_len = len(prompt)
+            prompt = self._truncate_to_sentence(prompt, self.MAX_PROMPT_LENGTH)
+            logger.warning(
+                f"Текст запроса слишком длинный ({original_len} символов). "
+                f"Обрезан по последнему предложению до {len(prompt)} символов."
+            )
 
-        if len(prompt) > self.max_prompt_length:
-            logger.warning(f"Текст запроса слишком длинный ({len(prompt)} символов). Обрезаем до {self.max_prompt_length} символов.")
-            prompt = prompt[:self.max_prompt_length]
-
-        url = "https://llm.api.cloud.yandex.net/foundationModels/v1/imageGenerationAsync"
         headers = {
-            "Authorization": f"Bearer {self.iam_token}",
-            "X-Folder-Id": FOLDER_ID
+            "Authorization": f"Api-Key {YANDEX_API_KEY}",
+            "Content-Type": "application/json",
+            "x-folder-id": FOLDER_ID,
         }
-        random_seed = random.randint(1, 9223372036854775807)
-        data = {
-            "modelUri": f"art://{FOLDER_ID}/yandex-art/latest",
-            "generationOptions": {
-                "seed": random_seed,
-                "aspectRatio": {"widthRatio": 16, "heightRatio": 9}
-            },
-            "messages": [{"weight": 1, "text": prompt}]
+        payload = {
+            "model": f"art://{FOLDER_ID}/{self.MODEL}",
+            "prompt": prompt,
+            "size": "1792x1024",
+            "n": 1,
+            "response_format": "b64_json",
         }
 
         try:
-            response = requests.post(url, headers=headers, json=data)
+            response = self.client.post(self.API_URL, headers=headers, json=payload)
             response.raise_for_status()
-            request_id = response.json().get("id")
+            data = response.json()
 
-            logger.info("Ожидание завершения генерации изображения...")
-            time.sleep(20)
+            items = data.get("data") or []
+            if not items or "b64_json" not in items[0]:
+                raise ValueError(f"Yandex API не вернул изображение: {data}")
 
-            result_url = f"https://llm.api.cloud.yandex.net:443/operations/{request_id}"
-            result_response = requests.get(result_url, headers=headers)
-            result_response.raise_for_status()
-            image_base64 = result_response.json().get("response", {}).get("image")
-
-            if not image_base64:
-                raise ValueError("Yandex API не вернул изображение")
-
-            return image_base64
-        except requests.exceptions.RequestException as e:
+            return items[0]["b64_json"]
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Ошибка статуса Yandex API: {e.response.status_code} - {e.response.text}")
+            raise
+        except httpx.RequestError as e:
             logger.error(f"Ошибка при запросе к Yandex API: {e}")
-            if e.response:
-                logger.error(f"Ответ сервера: {e.response.text}")
             raise
