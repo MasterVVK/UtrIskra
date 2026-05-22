@@ -8,12 +8,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from aiogram import Bot
 from aiogram.types import FSInputFile
-from config import TELEGRAM_TOKEN, TARGET_CHAT_ID, IMAGES_PATH, FONTS_PATH
+from config import TELEGRAM_TOKEN, TARGET_CHAT_ID, IMAGES_PATH
 from services.gemini_service import GeminiService
 from services.gemini_image_service import GeminiImageService
-from PIL import Image, ImageDraw, ImageFont
 import logging
 from utils.database import initialize_database, save_to_database
+from utils.image_utils import add_date_to_image
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -32,37 +32,6 @@ def create_image_path():
     os.makedirs(directory, exist_ok=True)
 
     return os.path.join(directory, file_name)
-
-def add_date_to_image(image_path: str, date_text: str):
-    """
-    Добавляет дату на изображение.
-    """
-    try:
-        font_path = f"{FONTS_PATH}/Roboto-Regular.ttf"
-        if not os.path.exists(font_path):
-            raise FileNotFoundError(f"Шрифт '{font_path}' не найден.")
-
-        img = Image.open(image_path)
-        draw = ImageDraw.Draw(img)
-        font_size = int(min(img.size) * 0.025)
-        font = ImageFont.truetype(font_path, font_size)
-
-        text_position = (img.size[0] - font_size * len(date_text) - 10, img.size[1] - font_size - 10)
-        text_color = (255, 255, 255)
-        shadow_color = (0, 0, 0)
-        shadow_offset = 2
-
-        draw.text(
-            (text_position[0] + shadow_offset, text_position[1] + shadow_offset),
-            date_text,
-            font=font,
-            fill=shadow_color,
-        )
-        draw.text(text_position, date_text, font=font, fill=text_color)
-        img.save(image_path)
-        logger.info(f"Дата '{date_text}' добавлена на изображение {image_path}")
-    except Exception as e:
-        logger.error(f"Ошибка при добавлении даты на изображение: {e}")
 
 def generate_dynamic_prompt():
     """
