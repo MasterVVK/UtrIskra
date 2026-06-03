@@ -5,11 +5,12 @@ import random
 
 logger = logging.getLogger(__name__)  # Устанавливаем логгер для текущего модуля
 
-def generate_dynamic_prompt(prompts_file: str, max_theme: int = 10) -> tuple:
+def generate_dynamic_prompt(prompts_file: str, max_theme: int = 10, max_category: int = 14) -> tuple:
     """
     Читает системный и пользовательский промпт из файла с многострочным форматом.
     :param prompts_file: Путь к файлу с промптами.
     :param max_theme: Верхняя граница диапазона для {random_theme} (включительно).
+    :param max_category: Верхняя граница диапазона для {random_category} (включительно).
     :return: Кортеж (system_prompt, user_prompt).
     """
     try:
@@ -26,13 +27,17 @@ def generate_dynamic_prompt(prompts_file: str, max_theme: int = 10) -> tuple:
         user_prompt_end = "---END_USER_PROMPT---"
         user_prompt = content.split(user_prompt_start)[1].split(user_prompt_end)[0].strip()
 
-        # Заменяем {current_date} в пользовательском промпте
+        # Заменяем плейсхолдеры в пользовательском промпте
         current_date = datetime.datetime.now().strftime("%d %B %Y")
         random_theme = str(random.randint(1, max_theme))
+        random_category = str(random.randint(1, max_category))
+        random_seed = str(random.randint(1, 999_999))
         user_prompt = user_prompt.replace("{current_date}", current_date)
         user_prompt = user_prompt.replace("{random_theme}", random_theme)
+        user_prompt = user_prompt.replace("{random_category}", random_category)
+        user_prompt = user_prompt.replace("{random_seed}", random_seed)
 
-        logger.info("Промпты успешно извлечены из файла.")
+        logger.info(f"Промпты извлечены. random_theme={random_theme}, random_category={random_category}, random_seed={random_seed}")
         return system_prompt, user_prompt
     except FileNotFoundError:
         logger.error(f"Файл {prompts_file} не найден. Проверьте путь.")

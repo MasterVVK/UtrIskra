@@ -34,7 +34,7 @@ async def send_dalle_story():
 
     try:
         # Читаем промпты из файла
-        system_prompt, user_prompt = generate_dynamic_prompt(PROMPTS_FILE, max_theme=50)
+        system_prompt, user_prompt = generate_dynamic_prompt(PROMPTS_FILE, max_theme=50, max_category=15)
 
         logger.info(f"Системный промпт: {system_prompt}")
         logger.info(f"Пользовательский промпт для Gemini: {user_prompt}")
