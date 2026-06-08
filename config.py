@@ -56,4 +56,8 @@ ERNIE_API_URL = os.getenv("ERNIE_API_URL", "http://192.168.0.60:8002")
 # HiDream-O1-Image API
 HIDREAM_API_URL = os.getenv("HIDREAM_API_URL", "http://192.168.0.60:8003")
 
+# Qwen2API (OpenAI-совместимая обёртка chat.qwen.ai)
+QWEN_CHAT_API_URL = os.getenv("QWEN_CHAT_API_URL", "http://localhost:3001/v1")
+QWEN_CHAT_API_KEY = os.getenv("QWEN_CHAT_API_KEY", "sk-123456")
+
 PROMPTS_DIR = os.getenv("PROMPTS_DIR")
