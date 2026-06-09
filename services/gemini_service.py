@@ -67,9 +67,11 @@ class GeminiService:
                         },
                     )
                 except Exception as e:
-                    print(f"[ERROR] Ошибка при запросе: {e}")
-                    self.switch_to_next_key()
-                    break  # Переходим к следующему ключу
+                    retries += 1
+                    print(
+                        f"[WARNING] Сетевая ошибка ({e}). Повтор через 5 секунд... (Попытка {retries} из 20)")
+                    time.sleep(50)
+                    continue  # Повторяем запрос с тем же ключом
 
                 if response.status_code == 200:
                     data = response.json()
