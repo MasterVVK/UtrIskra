@@ -47,7 +47,7 @@ class GeminiService:
         # Пытаемся использовать ключи по очереди
         for _ in range(len(self.api_keys)):
             retries = 0  # Счетчик повторных попыток при статусе 503
-            while retries < 3:
+            while retries < 20:
                 try:
                     response = self.client.post(
                         #"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent",
@@ -77,7 +77,7 @@ class GeminiService:
                 elif response.status_code == 503:
                     retries += 1
                     print(
-                        f"[WARNING] Модель перегружена (503). Попытка повторить запрос через 5 секунд... (Попытка {retries} из 5)")
+                        f"[WARNING] Модель перегружена (503). Попытка повторить запрос через 5 секунд... (Попытка {retries} из 20)")
                     time.sleep(50)
                     continue  # Повторяем запрос с тем же ключом
                 elif response.status_code == 429:
@@ -92,7 +92,7 @@ class GeminiService:
                     print(f"[ERROR] Ошибка API {response.status_code}: {response.text}")
                     return ""
             else:
-                # Если 3 попытки с кодом 503 исчерпаны, завершаем работу программы
+                # Если 20 попыток с кодом 503 исчерпаны, завершаем работу программы
                 print("[CRITICAL] Превышено число попыток получения ответа с кодом 503. Завершение работы.")
                 sys.exit(1)
 
