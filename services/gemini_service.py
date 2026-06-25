@@ -1,8 +1,12 @@
 import time
 import httpx
 from httpx_socks import SyncProxyTransport
-from config import GEMINI_API_KEYS, PROXY_URL
-import sys  # Для завершения программы
+from config import (GEMINI_API_KEYS, PROXY_URL,
+                    FALLBACK_LLM_URL, FALLBACK_LLM_KEY, FALLBACK_LLM_MODEL)
+
+# Параметры повторов при ошибке 503 (перегрузка модели)
+MAX_503_RETRIES = 3        # было 20
+RETRY_DELAY_SEC = 10       # было 50
 
 
 class GeminiService:
@@ -47,7 +51,7 @@ class GeminiService:
         # Пытаемся использовать ключи по очереди
         for _ in range(len(self.api_keys)):
             retries = 0  # Счетчик повторных попыток при статусе 503
-            while retries < 20:
+            while retries < MAX_503_RETRIES:
                 try:
                     response = self.client.post(
                         #"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent",
@@ -69,8 +73,8 @@ class GeminiService:
                 except Exception as e:
                     retries += 1
                     print(
-                        f"[WARNING] Сетевая ошибка ({e}). Повтор через 5 секунд... (Попытка {retries} из 20)")
-                    time.sleep(50)
+                        f"[WARNING] Сетевая ошибка ({e}). Повтор через {RETRY_DELAY_SEC} секунд... (Попытка {retries} из {MAX_503_RETRIES})")
+                    time.sleep(RETRY_DELAY_SEC)
                     continue  # Повторяем запрос с тем же ключом
 
                 if response.status_code == 200:
@@ -79,8 +83,8 @@ class GeminiService:
                 elif response.status_code == 503:
                     retries += 1
                     print(
-                        f"[WARNING] Модель перегружена (503). Попытка повторить запрос через 5 секунд... (Попытка {retries} из 20)")
-                    time.sleep(50)
+                        f"[WARNING] Модель перегружена (503). Попытка повторить запрос через {RETRY_DELAY_SEC} секунд... (Попытка {retries} из {MAX_503_RETRIES})")
+                    time.sleep(RETRY_DELAY_SEC)
                     continue  # Повторяем запрос с тем же ключом
                 elif response.status_code == 429:
                     print(f"[WARNING] Ключ {self.current_key} исчерпан. Переключаемся.")
@@ -91,13 +95,41 @@ class GeminiService:
                     self.switch_to_next_key()
                     break  # Переходим к следующему ключу
                 else:
-                    print(f"[ERROR] Ошибка API {response.status_code}: {response.text}")
-                    return ""
+                    print(f"[ERROR] Ошибка API {response.status_code}: {response.text}. Переключаемся на запасную LLM.")
+                    return self._generate_fallback(system_prompt, user_prompt, temperature, max_output_tokens)
             else:
-                # Если 20 попыток с кодом 503 исчерпаны, завершаем работу программы
-                print("[CRITICAL] Превышено число попыток получения ответа с кодом 503. Завершение работы.")
-                sys.exit(1)
+                # Повторы 503 для текущего ключа исчерпаны — пробуем следующий ключ
+                print(f"[WARNING] Ключ {self.current_key}: исчерпаны повторы 503. Переходим к следующему ключу.")
+                self.switch_to_next_key()
+                continue  # Переходим к следующему ключу
 
-        # Если все ключи исчерпаны
-        print("[CRITICAL] Все API-ключи недействительны или исчерпаны. Завершение работы.")
-        sys.exit(1)
+        # Если все ключи исчерпаны / Gemini недоступен — переключаемся на запасную LLM
+        print("[WARNING] Gemini недоступен. Переключаемся на запасную LLM.")
+        return self._generate_fallback(system_prompt, user_prompt, temperature, max_output_tokens)
+
+    def _generate_fallback(self, system_prompt: str, user_prompt: str, temperature: float,
+                           max_output_tokens: int) -> str:
+        """Запасная генерация через локальную/облачную OpenAI-совместимую LLM (без SOCKS5-прокси)."""
+        try:
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": user_prompt})
+            print(f"[INFO] Запрос к запасной LLM: {FALLBACK_LLM_URL} (модель {FALLBACK_LLM_MODEL})")
+            # Отдельный клиент БЕЗ прокси — эндпоинт в локальной сети.
+            # Таймаут 600с: модель с рассуждением (thinking) на крупных промптах считает долго.
+            with httpx.Client(timeout=httpx.Timeout(600)) as client:
+                resp = client.post(
+                    f"{FALLBACK_LLM_URL.rstrip('/')}/chat/completions",
+                    headers={"Authorization": f"Bearer {FALLBACK_LLM_KEY}",
+                             "Content-Type": "application/json"},
+                    json={"model": FALLBACK_LLM_MODEL, "messages": messages,
+                          "temperature": temperature, "max_tokens": max_output_tokens,
+                          "stream": False},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            return data["choices"][0]["message"]["content"]
+        except Exception as e:
+            print(f"[ERROR] Запасная LLM тоже недоступна: {e}")
+            return ""
