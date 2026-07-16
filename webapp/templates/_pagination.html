@@ -1,0 +1,7 @@
+{% if pages > 1 %}
+<div class="pagination">
+  {% if prev_url %}<a class="btn btn-ghost" href="{{ prev_url }}">← Назад</a>{% else %}<span class="btn btn-ghost disabled">← Назад</span>{% endif %}
+  <span class="muted">стр. {{ page }} из {{ pages }}</span>
+  {% if next_url %}<a class="btn btn-ghost" href="{{ next_url }}">Вперёд →</a>{% else %}<span class="btn btn-ghost disabled">Вперёд →</span>{% endif %}
+</div>
+{% endif %}

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}{{ job.title }} — настройки — UtrIskra{% endblock %}
+{% block page %}job_settings{% endblock %}
+{% block content %}
+<p><a class="backlink" href="/">← Дашборд</a> · <a class="backlink" href="/logs?job={{ key }}">Логи задачи →</a></p>
+<div class="page-head">
+  <h1>Настройки: {{ job.title }} <span class="muted">({{ key }})</span></h1>
+  {% if job.archived %}
+  <button class="btn btn-small js-archive" data-key="{{ key }}" data-title="{{ job.title }}" data-to="0">↩ Вернуть из архива</button>
+  {% else %}
+  <button class="btn btn-small btn-ghost js-archive" data-key="{{ key }}" data-title="{{ job.title }}" data-to="1">📦 Убрать в архив</button>
+  {% endif %}
+</div>
+{% if job.archived %}<p class="gen-note">📦 Задача в архиве: скрыта с дашборда, расписание отключено. Изображения остаются в галерее и истории.</p>{% endif %}
+{% if job.note %}<p class="gen-note">⚠ {{ job.note }}</p>{% endif %}
+
+{% if job.pipeline == 'legacy' %}
+<p class="empty">Это legacy-раннер ({{ job.module }}.{{ job.func }}) — параметры появятся
+после перевода на пайплайн. Расписание и запуск — на <a href="/">дашборде</a>.</p>
+{% else %}
+<div id="job-form" data-key="{{ key }}">
+  <h2>Промпт <span class="muted">{% if prompt %}версия {{ prompt.version }} от {{ prompt.updated_at }}{% else %}ещё не задан{% endif %}</span></h2>
+  <p class="hint">Плейсхолдеры в пользовательском промпте: <span class="mono">{{ '{current_date}' }}</span>,
+  <span class="mono">{{ '{random_theme}' }}</span> (1..max_theme),
+  <span class="mono">{{ '{random_category}' }}</span> (1..max_category),
+  <span class="mono">{{ '{random_seed}' }}</span>.
+  Каждое сохранение с изменениями создаёт новую версию в БД.</p>
+  <label class="field-wide"><span>Системный промпт (можно оставить пустым)</span>
+    <textarea id="jf-prompt-system" class="prompt-edit" rows="4" spellcheck="false">{{ prompt.system if prompt else '' }}</textarea>
+  </label>
+  <label class="field-wide"><span>Пользовательский промпт</span>
+    <textarea id="jf-prompt-user" class="prompt-edit" rows="16" spellcheck="false">{{ prompt.user if prompt else '' }}</textarea>
+  </label>
+
+  <h2>LLM</h2>
+  <div class="form-grid">
+    <label class="field"><span>LLM-провайдер</span>
+      <select id="jf-llm-provider">
+        <option value="">цепочка по умолчанию ({{ llm_chain|join(' → ') }})</option>
+        {% for name in llm_names %}
+        <option value="{{ name }}" {% if job.llm.provider == name %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="field"><span>Температура</span>
+      <input type="number" id="jf-temperature" step="0.1" min="0" max="2" value="{{ job.llm.temperature }}">
+    </label>
+    <label class="field"><span>max_theme ({{ '{random_theme}' }})</span>
+      <input type="number" id="jf-max-theme" min="1" max="1000" value="{{ job.llm.max_theme }}">
+    </label>
+    <label class="field"><span>max_category ({{ '{random_category}' }})</span>
+      <input type="number" id="jf-max-category" min="1" max="100" value="{{ job.llm.max_category }}">
+    </label>
+  </div>
+
+  <h2>Генерация изображения</h2>
+  <div class="form-grid">
+    <label class="field"><span>Провайдер</span>
+      <select id="jf-image-provider">
+        {% for name in image_names %}
+        <option {% if job.image.provider == name %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% for f in image_fields %}
+    <label class="field"><span>{{ f.label or f.key }}</span>
+      {% if f.kind == 'bool' %}
+        <input type="checkbox" class="jf-param" data-key="{{ f.key }}" data-kind="bool"
+               {% if f.value %}checked{% endif %}>
+      {% elif f.kind == 'choice' %}
+        <select class="jf-param" data-key="{{ f.key }}" data-kind="choice">
+          {% for c in f.choices %}<option {% if c == f.value %}selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+      {% elif f.kind in ('int', 'float') %}
+        <input type="number" class="jf-param" data-key="{{ f.key }}" data-kind="{{ f.kind }}"
+               value="{{ f.value }}"
+               {% if f.min is defined and f.min is not none %}min="{{ f.min }}"{% endif %}
+               {% if f.max is defined and f.max is not none %}max="{{ f.max }}"{% endif %}
+               {% if f.kind == 'float' %}step="0.1"{% endif %}>
+      {% else %}
+        <input type="text" class="jf-param" data-key="{{ f.key }}" data-kind="str" value="{{ f.value }}">
+      {% endif %}
+    </label>
+    {% endfor %}
+  </div>
+  {% if not image_fields %}<p class="hint">У этого провайдера нет настраиваемых параметров.</p>{% endif %}
+  <p class="hint">Смена провайдера сохраняет задачу и перерисовывает форму параметров под новый провайдер.</p>
+
+  <h2>Оформление и публикация</h2>
+  <div class="form-grid">
+    <label class="field"><span>Водяной знак (буква)</span>
+      <span class="inline">
+        <input type="checkbox" id="jf-wm-enabled" {% if job.watermark.enabled %}checked{% endif %}>
+        <input type="text" id="jf-wm-letter" maxlength="4" value="{{ job.watermark.letter }}">
+      </span>
+    </label>
+    <label class="field"><span>Ретраи Telegram</span>
+      <input type="number" id="jf-retries" min="0" max="10" value="{{ job.publish.retries }}">
+    </label>
+    <label class="field"><span>Chat ID (пусто = TARGET_CHAT_ID из .env)</span>
+      <input type="text" id="jf-chat-id" value="{{ job.publish.chat_id or '' }}">
+    </label>
+    <label class="field"><span>Debug-публикация</span>
+      <span class="inline">
+        <input type="checkbox" id="jf-debug" {% if job.publish.debug %}checked{% endif %}>
+        <span class="hint">🐞 в отладочный чат (DEBUG_* из .env)</span>
+      </span>
+    </label>
+  </div>
+
+  <p><button class="btn" id="jf-save">💾 Сохранить настройки</button></p>
+</div>
+{% endif %}
+{% endblock %}

@@ -35,3 +35,7 @@ tzlocal==5.2
 urllib3==2.2.3
 yarl==1.18.3
 google-genai
+# веб-приложение (webapp/)
+fastapi==0.139.0
+uvicorn==0.51.0
+Jinja2==3.1.6

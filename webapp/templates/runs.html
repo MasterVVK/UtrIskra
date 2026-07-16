@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Запуски — UtrIskra{% endblock %}
+{% block page %}runs{% endblock %}
+{% block content %}
+<h1>Запуски <span class="muted">({{ runs|length }})</span></h1>
+{% if runs %}
+<table class="table">
+  <thead><tr><th>Время</th><th>Генератор</th><th>Триггер</th><th>Статус</th><th>Длительность</th><th>Ошибка</th><th></th></tr></thead>
+  <tbody>
+  {% for r in runs %}
+  <tr>
+    <td class="nowrap"><span class="js-dt" data-iso="{{ r.started_at }}">{{ r.started_at }}</span></td>
+    <td>{{ r.title }}</td>
+    <td class="muted">{{ trigger_titles.get(r.trigger, r.trigger) }}</td>
+    <td><span class="badge badge-{{ r.status }}">{{ status_titles.get(r.status, r.status) }}</span></td>
+    <td class="nowrap">{% if r.duration is not none %}{{ r.duration }} с{% else %}—{% endif %}</td>
+    <td class="err-cell">{{ r.error or '' }}</td>
+    <td><button class="btn btn-small btn-ghost js-log" data-run="{{ r.run_id }}">Лог</button></td>
+  </tr>
+  <tr class="log-row" id="log-{{ r.run_id }}" hidden><td colspan="7"><pre class="log"></pre></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">Запусков ещё не было. Запустить генератор можно с <a href="/">дашборда</a>.</p>
+{% endif %}
+{% endblock %}

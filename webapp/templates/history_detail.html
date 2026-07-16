@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Запись #{{ record.id }} — UtrIskra{% endblock %}
+{% block page %}history_detail{% endblock %}
+{% block content %}
+<p><a class="backlink" href="/history">← К истории</a></p>
+<div class="detail">
+  <div class="detail-media">
+    {% if not record.file_exists or not record.media_url %}
+      <div class="media-missing big">файл не найден<br><span class="mono muted">{{ record.image_path }}</span></div>
+    {% elif record.is_video %}
+      <video src="{{ record.media_url }}" controls></video>
+    {% else %}
+      <a href="{{ record.media_url }}" target="_blank"><img src="{{ record.media_url }}" alt="Запись #{{ record.id }}"></a>
+    {% endif %}
+  </div>
+  <div class="detail-info">
+    <h1>Запись #{{ record.id }}</h1>
+    <div class="kv"><span>Дата</span><b>{{ record.date }}</b></div>
+    <div class="kv"><span>Генератор</span><b>{{ record.generator_title }}</b></div>
+    <div class="kv"><span>Файл</span><b class="mono">{{ record.filename }}</b></div>
+    <h3>Промпт генерации</h3>
+    <pre class="prompt">{{ record.generated_prompt }}</pre>
+    <details>
+      <summary>Пользовательский промпт (для Gemini)</summary>
+      <pre class="prompt">{{ record.user_prompt or "—" }}</pre>
+    </details>
+    <details>
+      <summary>Системный промпт</summary>
+      <pre class="prompt">{{ record.system_prompt or "—" }}</pre>
+    </details>
+  </div>
+</div>
+{% endblock %}

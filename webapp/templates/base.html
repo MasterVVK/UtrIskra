@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}UtrIskra{% endblock %}</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body data-page="{% block page %}{% endblock %}">
+<header class="topbar">
+  <div class="container topbar-inner">
+    <a class="brand" href="/">✨ UtrIskra</a>
+    <nav class="mainnav">
+      <a href="/" {% if nav == 'dashboard' %}class="active"{% endif %}>Дашборд</a>
+      <a href="/gallery" {% if nav == 'gallery' %}class="active"{% endif %}>Галерея</a>
+      <a href="/history" {% if nav == 'history' %}class="active"{% endif %}>История</a>
+      <a href="/runs" {% if nav == 'runs' %}class="active"{% endif %}>Запуски</a>
+      <a href="/providers" {% if nav == 'providers' %}class="active"{% endif %}>Провайдеры</a>
+      <a href="/logs" {% if nav == 'logs' %}class="active"{% endif %}>Логи</a>
+    </nav>
+    <span class="debug-badge" id="debug-badge" hidden title="Публикации идут в отладочный чат">🐞 DEBUG</span>
+    <div class="server-time" title="Время сервера">🕐 <span id="server-now">—</span></div>
+  </div>
+</header>
+<main class="container">
+{% block content %}{% endblock %}
+</main>
+<div id="toast" class="toast"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

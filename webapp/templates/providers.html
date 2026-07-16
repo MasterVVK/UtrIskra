@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Провайдеры — UtrIskra{% endblock %}
+{% block page %}providers{% endblock %}
+{% block content %}
+<h1>Провайдеры</h1>
+<p class="hint">Секреты в конфигах не хранятся — только имена переменных из .env (keys_env, api_key_env).
+Изменения применяются сразу, без перезапуска. Проверка не запускает генерацию.</p>
+
+<h2>LLM (генерация промптов)</h2>
+<p class="chain-bar">Цепочка fallback:
+  <input type="text" id="llm-chain" value="{{ llm_chain|join(', ') }}">
+  <button class="btn btn-small" id="save-chain">Сохранить цепочку</button>
+</p>
+<table class="table">
+  <thead><tr><th>Имя</th><th>Тип</th><th>Описание</th><th>Статус</th><th></th></tr></thead>
+  <tbody>
+  {% for p in llm_rows %}
+  <tr>
+    <td><b>{{ p.name }}</b></td>
+    <td class="muted">{{ p.type }}</td>
+    <td class="mono">{{ p.describe }}</td>
+    <td class="health-cell"><span class="health" id="health-llm-{{ p.name }}">—</span></td>
+    <td class="nowrap">
+      <button class="btn btn-small btn-ghost js-health" data-kind="llm" data-name="{{ p.name }}">Проверить</button>
+      <button class="btn btn-small btn-ghost js-toggle-edit" data-target="edit-llm-{{ p.name }}">Изменить</button>
+    </td>
+  </tr>
+  <tr id="edit-llm-{{ p.name }}" class="log-row" hidden><td colspan="5">
+    <textarea class="cfg-edit" data-kind="llm" data-name="{{ p.name }}" rows="7" spellcheck="false">{{ p.config_json }}</textarea>
+    <p><button class="btn btn-small js-save-provider" data-kind="llm" data-name="{{ p.name }}">💾 Сохранить конфиг</button></p>
+  </td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Генераторы изображений</h2>
+<table class="table">
+  <thead><tr><th>Имя</th><th>Тип</th><th>Описание</th><th>Статус</th><th></th></tr></thead>
+  <tbody>
+  {% for p in image_rows %}
+  <tr>
+    <td><b>{{ p.name }}</b></td>
+    <td class="muted">{{ p.type }}</td>
+    <td class="mono">{{ p.describe }}</td>
+    <td class="health-cell"><span class="health" id="health-image-{{ p.name }}">—</span></td>
+    <td class="nowrap">
+      <button class="btn btn-small btn-ghost js-health" data-kind="image" data-name="{{ p.name }}">Проверить</button>
+      <button class="btn btn-small btn-ghost js-toggle-edit" data-target="edit-image-{{ p.name }}">Изменить</button>
+    </td>
+  </tr>
+  <tr id="edit-image-{{ p.name }}" class="log-row" hidden><td colspan="5">
+    <textarea class="cfg-edit" data-kind="image" data-name="{{ p.name }}" rows="10" spellcheck="false">{{ p.config_json }}</textarea>
+    <p><button class="btn btn-small js-save-provider" data-kind="image" data-name="{{ p.name }}">💾 Сохранить конфиг</button></p>
+  </td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

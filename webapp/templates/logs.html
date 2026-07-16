@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Логи — UtrIskra{% endblock %}
+{% block page %}logs{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Логи приложения</h1>
+  <div class="filter-bar">
+    <select id="log-job" title="Задача">
+      <option value="">всё приложение</option>
+      {% for g in generators %}
+      <option value="{{ g.key }}" {% if g.key == job %}selected{% endif %}>{{ g.title }}</option>
+      {% endfor %}
+    </select>
+    <select id="log-runs" title="Сколько запусков" {% if not job %}hidden{% endif %}>
+      <option value="1">1 запуск</option>
+      <option value="3" selected>3 запуска</option>
+      <option value="5">5 запусков</option>
+      <option value="10">10 запусков</option>
+    </select>
+    <select id="log-level" title="Уровень">
+      <option value="">все уровни</option>
+      <option value="ERROR">ERROR</option>
+      <option value="WARNING">WARNING</option>
+      <option value="INFO">INFO</option>
+    </select>
+    <input type="search" id="log-q" placeholder="Фильтр по тексту…">
+    <select id="log-lines" title="Строк">
+      <option>100</option>
+      <option selected>300</option>
+      <option>1000</option>
+      <option>2000</option>
+    </select>
+    <label class="checkbox-label"><input type="checkbox" id="log-auto" checked> автообновление</label>
+    <button class="btn btn-small" id="log-refresh">Обновить</button>
+  </div>
+</div>
+<p class="hint">«Всё приложение» — журнал сервиса (<span class="mono">storage/webapp/app.log</span>,
+ротация 5 МБ × 3; полный вывод — <span class="mono">journalctl -u utriskra-web</span>).
+Выбор задачи показывает логи её последних запусков из истории.</p>
+<pre class="log log-page" id="log-output">Загрузка…</pre>
+{% endblock %}

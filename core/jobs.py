@@ -1,0 +1,149 @@
+"""jobs.json: задачи генерации (что и как генерировать/публиковать).
+
+Расписание (вкл/выкл, время) живёт отдельно — в storage/webapp/schedule.json,
+это runtime-состояние; здесь — определения задач. Первичный файл генерируется
+со значениями, воспроизводящими поведение старых раннеров 1:1.
+"""
+import json
+import logging
+import os
+import threading
+
+from config import BASE_STORAGE_PATH
+
+logger = logging.getLogger(__name__)
+
+JOBS_PATH = os.path.join(BASE_STORAGE_PATH, "webapp", "jobs.json")
+_lock = threading.Lock()
+_cache = {"mtime": None, "data": None}
+
+
+def _image_job(title, prefix, prompt_file, letter, image_provider, image_params,
+               hour, minute, *, temperature=0.7, max_theme=10, max_category=14,
+               retries=0, note=""):
+    return {
+        "title": title, "pipeline": "image", "media": "image",
+        "file_prefix": prefix, "extra_prefixes": [],
+        "prompt_file": prompt_file,
+        "llm": {"provider": None, "temperature": temperature,
+                "max_theme": max_theme, "max_category": max_category},
+        "image": {"provider": image_provider, "params": image_params},
+        "watermark": {"enabled": True, "letter": letter},
+        "publish": {"chat_id": None, "retries": retries},
+        "default_hour": hour, "default_minute": minute,
+        "note": note,
+    }
+
+
+def _legacy_job(title, prefix, extra, media, module, func, hour, minute, note=""):
+    return {
+        "title": title, "pipeline": "legacy", "media": media,
+        "file_prefix": prefix, "extra_prefixes": extra,
+        "module": module, "func": func,
+        "default_hour": hour, "default_minute": minute,
+        "note": note or "Legacy-раннер: настройки появятся после перевода на пайплайн",
+    }
+
+
+def _default_jobs():
+    return {
+        "stability": _image_job(
+            "Stability AI", "daily_story", "daily_runner.txt", "S", "stability",
+            {"aspect_ratio": "16:9", "negative_prompt": "low quality, watermark",
+             "output_format": "png"}, 7, 0),
+        "kandinsky": _image_job(
+            "Kandinsky", "kandinsky_story", "kandinsky_runner.txt", "K", "kandinsky",
+            {"width": 1344, "height": 768}, 8, 0, temperature=1.0),
+        "midjourney": _legacy_job(
+            "MidJourney", "midjourney_story", [], "image",
+            "runners.midjourney_runner", "send_midjourney_story", 9, 0),
+        "dalle": _image_job(
+            "DALL-E", "dalle_image", "dalle_runner.txt", "D", "dalle",
+            {"model": "gpt-image-2", "size": "1536x1024", "quality": "auto"},
+            10, 0, temperature=1.0, max_theme=50, max_category=15, retries=3),
+        "flux": _image_job(
+            "Flux", "flux_story", "flux_runner.txt", "F", "flux",
+            {"width": 1344, "height": 768, "steps": 50}, 11, 0),
+        "yandex": _image_job(
+            "Yandex Art", "yandex_story", "yandex_runner.txt", "Y", "yandex",
+            {}, 12, 0, temperature=0.9, retries=3),
+        "gemini_image": _image_job(
+            "Gemini Image", "gemini_image_story", "gemini_image_runner.txt", "G",
+            "gemini_image", {"model": "gemini-2.5-flash-image"}, 13, 0),
+        "midjourney_video": _legacy_job(
+            "MidJourney Video", "midjourney_video", ["midjourney_video_image"], "video",
+            "runners.midjourney_video_runner", "send_midjourney_video_story", 14, 0),
+        "best_image_video": _legacy_job(
+            "Best Image Video", "best_image_video", ["best_image"], "video",
+            "runners.best_image_video_runner", "send_best_image_video_story", 15, 0,
+            note="Требует авторизованную Telethon-сессию; legacy-раннер"),
+        "zimage": _image_job(
+            "Z-Image", "zimage_story", "zimage_runner.txt", "Z", "zimage",
+            {"model": "base", "aspect_ratio": "16:9", "num_inference_steps": 30,
+             "guidance_scale": 5.0}, 16, 0, retries=3),
+        "stability_prompts": _image_job(
+            "Stability AI (промпт-файл)", "stability_story", "stability_runner.txt",
+            "S", "stability",
+            {"aspect_ratio": "16:9", "negative_prompt": "low quality, watermark",
+             "output_format": "png"}, 17, 0),
+        "qwen": _image_job(
+            "Qwen Image", "qwen_story", "qwen_runner.txt", "Q", "qwen",
+            {"aspect_ratio": "16:9", "num_inference_steps": 50, "cfg_scale": 4.0},
+            17, 30, retries=3),
+        "qwen_chat": _image_job(
+            "Qwen Chat", "qwen_chat_story", "qwen_chat_runner.txt", "QC", "qwen_chat",
+            {"model": "qwen3.7-plus-image", "aspect_ratio": "16:9",
+             "temperature": 0.7, "top_p": 0.95}, 18, 0, retries=3),
+        "ernie": _image_job(
+            "ERNIE", "ernie_story", "ernie_runner.txt", "E", "ernie",
+            {"model": "sft", "aspect_ratio": "16:9", "num_inference_steps": 100,
+             "guidance_scale": 4.0, "use_pe": True}, 18, 30, max_theme=50, retries=3),
+        "hidream": _image_job(
+            "HiDream", "hidream_story", "hidream_runner.txt", "H", "hidream",
+            {"aspect_ratio": "16:9", "use_pe": True}, 19, 0, max_theme=50, retries=3),
+    }
+
+
+def load_jobs() -> dict:
+    """Читает jobs.json (с кэшем по mtime); при первом обращении создаёт из дефолтов."""
+    with _lock:
+        try:
+            mtime = os.path.getmtime(JOBS_PATH)
+            if _cache["mtime"] == mtime and _cache["data"] is not None:
+                return _cache["data"]
+            with open(JOBS_PATH, encoding="utf-8") as file:
+                data = json.load(file)
+        except FileNotFoundError:
+            data = _default_jobs()
+            _write(data)
+            mtime = os.path.getmtime(JOBS_PATH)
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.error("Не удалось прочитать %s: %s — использую дефолты", JOBS_PATH, exc)
+            return _default_jobs()
+        _cache.update(mtime=mtime, data=data)
+        return data
+
+
+def _write(data):
+    os.makedirs(os.path.dirname(JOBS_PATH), exist_ok=True)
+    tmp_path = JOBS_PATH + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as file:
+        json.dump(data, file, ensure_ascii=False, indent=2)
+    os.replace(tmp_path, JOBS_PATH)
+    _cache.update(mtime=os.path.getmtime(JOBS_PATH), data=data)
+
+
+def get_job(key: str) -> dict:
+    job = load_jobs().get(key)
+    if job is None:
+        raise KeyError(f"Задача «{key}» не найдена в jobs.json")
+    return job
+
+
+def save_job(key: str, job: dict):
+    data = load_jobs()
+    if key not in data:
+        raise KeyError(f"Задача «{key}» не найдена в jobs.json")
+    with _lock:
+        data[key] = job
+        _write(data)

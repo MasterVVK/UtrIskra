@@ -35,7 +35,23 @@ pip install -r requirements.txt
 ```bash
 python main.py
 ```
-Запускает основной планировщик с автоматической публикацией историй по расписанию (каждый день в разное время для разных генераторов).
+Запускает основной планировщик с автоматической публикацией историй по расписанию (каждый день в разное время для разных генераторов). **Устарело:** заменён веб-приложением (см. ниже); не запускать параллельно с ним — публикации задублируются.
+
+### Веб-приложение (панель управления)
+```bash
+python run_web.py                      # вручную, порт 8090 (WEB_HOST/WEB_PORT в .env)
+sudo systemctl restart utriskra-web    # прод: systemd-сервис
+journalctl -u utriskra-web -f          # логи сервиса
+```
+Пакет `webapp/` — FastAPI-панель: встроенный APScheduler (расписание редактируется в UI, хранится в `storage/webapp/schedule.json`), ручной запуск, галерея, история, логи запусков (`storage/webapp/runs.jsonl`), журнал приложения (`storage/webapp/app.log`, страница «Логи»), настройки задач (включая промпты) и провайдеров.
+
+Генерация построена на модульной архитектуре (см. `docs/architecture-providers.md`):
+- **задачи** — `storage/webapp/jobs.json`, исполняются пайплайном `core/pipeline.py` (промпт из БД с плейсхолдерами → цепочка LLM → image-провайдер → водяной знак → SQLite → Telegram); CLI: `python -m core.run <ключ>`;
+- **промпты** — в SQLite, таблица `job_prompts` (`core/prompts.py`): привязаны к задаче, каждое изменение — новая версия; редактируются на странице настроек задачи. Файлы `runners/prompts/*.txt` — исходник разовой миграции и рабочие промпты 3 legacy-раннеров;
+- **провайдеры** — `providers/llm/*` (gemini, openai-совместимые: Ollama/vLLM/Qwen2API) и `providers/image/*` (`local_task` покрывает все self-hosted task-API одним классом), инстансы в `storage/webapp/providers.json`;
+- `runners/*` — legacy: 12 типовых заменены пайплайном, 3 спец-раннера (midjourney, midjourney_video, best_image_video) вызываются как `pipeline: "legacy"`.
+
+Подробности: `docs/webapp.md`.
 
 ### Инициализация базы данных
 ```bash
@@ -44,15 +60,15 @@ python utils/database.py
 
 ### Запуск отдельных генераторов (для тестирования)
 ```bash
-python bot/daily_runner.py          # Stability AI (7:00)
-python bot/kandinsky_runner.py          # Kandinsky (8:00)
-python bot/midjourney_runner.py         # MidJourney (9:00)
-python bot/dalle_runner.py              # DALL-E (10:00)
-python bot/flux_runner.py               # Flux (11:00)
-python bot/yandex_runner.py             # Yandex Art (12:00)
-python bot/gemini_image_runner.py       # Gemini Image (13:00)
-python bot/midjourney_video_runner.py   # MidJourney Video (14:00)
-python bot/best_image_video_runner.py   # Best Image Animation (15:00) - требует Telethon auth
+python runners/daily_runner.py          # Stability AI (7:00)
+python runners/kandinsky_runner.py          # Kandinsky (8:00)
+python runners/midjourney_runner.py         # MidJourney (9:00)
+python runners/dalle_runner.py              # DALL-E (10:00)
+python runners/flux_runner.py               # Flux (11:00)
+python runners/yandex_runner.py             # Yandex Art (12:00)
+python runners/gemini_image_runner.py       # Gemini Image (13:00)
+python runners/midjourney_video_runner.py   # MidJourney Video (14:00)
+python runners/best_image_video_runner.py   # Best Image Animation (15:00) - требует Telethon auth
 ```
 
 ### Тестирование доступности сервисов
@@ -63,8 +79,8 @@ python services/test_availability.py
 ## Архитектура
 
 ### Основной поток работы
-1. **Планировщик** (`bot/scheduler.py`) запускает раннеры по расписанию через APScheduler
-2. **Раннер** (например `bot/daily_runner.py`) генерирует промпт через Gemini Pro
+1. **Планировщик** (`runners/scheduler.py`) запускает раннеры по расписанию через APScheduler
+2. **Раннер** (например `runners/daily_runner.py`) генерирует промпт через Gemini Pro
 3. **Сервис генерации** (например `services/stability_service.py`) создает изображение
 4. Изображение сохраняется в структуру `storage/images/{year}/{month}/{filename}.png`
 5. Метаданные записываются в SQLite (`storage/database/daily_images.db`)
@@ -80,7 +96,7 @@ python services/test_availability.py
 - `flux_service.py`, `dalle_service.py`, `midjourney_service.py`, `kandinsky_service.py`, `yandex_service.py` - другие генераторы изображений
 - `gemini_image_service.py` - генерация изображений через Gemini Image API
 
-**bot/**: Раннеры и планировщик
+**runners/**: Раннеры и планировщик
 - Каждый раннер (`*_runner.py`) - независимый модуль генерации и публикации
 - `scheduler.py` - настройка cron-задач для автоматической публикации
 
@@ -111,6 +127,7 @@ python services/test_availability.py
 - `TELETHON_PEER` - ID группы для анализа реакций (используется в `best_image_video_runner.py`)
 - `TELEGRAM_TOKEN` - токен Telegram бота
 - `TARGET_CHAT_ID` - ID чата/канала для публикации
+- `DEBUG_TELEGRAM_TOKEN`, `DEBUG_TARGET_CHAT_ID` - (опционально) отладочный бот и чат для debug-режима публикаций (тумблер на дашборде панели или флаг у задачи)
 - `BASE_STORAGE_PATH` - корневая директория для хранения (обычно "storage")
 - `FONTS_PATH` - путь к шрифтам для водяных знаков на изображениях
 
@@ -129,7 +146,7 @@ SQLite схема (`daily_images`):
 
 ## Расписание публикаций
 
-Определено в `bot/scheduler.py:22-28`:
+Определено в `runners/scheduler.py:22-28`:
 - 07:00 - Stability AI
 - 08:00 - Kandinsky
 - 09:00 - MidJourney

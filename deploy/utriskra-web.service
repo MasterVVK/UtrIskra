@@ -1,0 +1,16 @@
+[Unit]
+Description=UtrIskra web panel (генерация и публикация AI-изображений)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=user
+WorkingDirectory=/home/user/UtrIskra
+ExecStart=/home/user/UtrIskra/.venv/bin/python run_web.py
+Restart=on-failure
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

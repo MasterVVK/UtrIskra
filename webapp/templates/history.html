@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}История — UtrIskra{% endblock %}
+{% block page %}history{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>История <span class="muted">({{ total }})</span></h1>
+  <form method="get" class="filter-bar">
+    <select name="generator">
+      <option value="">Все генераторы</option>
+      {% for g in generators %}
+      <option value="{{ g.key }}" {% if g.key == generator %}selected{% endif %}>{{ g.title }}{% if g.archived %} (архив){% endif %}</option>
+      {% endfor %}
+    </select>
+    <input type="search" name="q" value="{{ q }}" placeholder="Поиск по промпту…">
+    <button class="btn" type="submit">Найти</button>
+  </form>
+</div>
+{% if records %}
+<table class="table">
+  <thead><tr><th>#</th><th>Дата</th><th>Генератор</th><th>Промпт</th><th></th></tr></thead>
+  <tbody>
+  {% for r in records %}
+  <tr>
+    <td class="muted">{{ r.id }}</td>
+    <td class="nowrap">{{ r.date }}</td>
+    <td><span class="badge">{{ r.generator_title }}</span></td>
+    <td class="prompt-cell">{{ r.generated_prompt[:160] }}{% if r.generated_prompt|length > 160 %}…{% endif %}</td>
+    <td><a class="btn btn-small btn-ghost" href="/history/{{ r.id }}">Открыть</a></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">Ничего не найдено.</p>
+{% endif %}
+{% include "_pagination.html" %}
+{% endblock %}

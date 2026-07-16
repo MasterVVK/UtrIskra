@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Галерея — UtrIskra{% endblock %}
+{% block page %}gallery{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Галерея <span class="muted">({{ total }})</span></h1>
+  <form method="get" class="filter-bar">
+    <select name="generator" onchange="this.form.submit()">
+      <option value="">Все генераторы</option>
+      {% for g in generators %}
+      <option value="{{ g.key }}" {% if g.key == generator %}selected{% endif %}>{{ g.title }}{% if g.archived %} (архив){% endif %}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+{% if records %}
+<div class="gallery-grid">
+  {% for r in records %}
+  <a class="gallery-card" href="/history/{{ r.id }}">
+    {% if not r.file_exists or not r.media_url %}
+      <div class="media-missing">файл не найден</div>
+    {% elif r.is_video %}
+      <video src="{{ r.media_url }}" preload="metadata" muted></video>
+    {% else %}
+      <img src="{{ r.media_url }}" loading="lazy" alt="{{ r.generator_title }}">
+    {% endif %}
+    <div class="gallery-caption"><span>{{ r.generator_title }}</span><span class="muted">{{ r.date }}</span></div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="empty">Пока нет изображений{% if generator %} у этого генератора{% endif %}.</p>
+{% endif %}
+{% include "_pagination.html" %}
+{% endblock %}

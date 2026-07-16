@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Дашборд — UtrIskra{% endblock %}
+{% block page %}dashboard{% endblock %}
+{% block content %}
+<div class="hero">
+  <div class="hero-head">
+    <h1 class="hero-title">Сегодня, {{ today_human }}</h1>
+    <div class="hero-stats">
+      <span><b>{{ stats.total }}</b> всего</span><i>·</i>
+      <span><b>{{ stats.today }}</b> сегодня</span><i>·</i>
+      <span><b id="stat-enabled">{{ status.enabled_count }}</b> в расписании</span><i>·</i>
+      <span><b id="stat-running">{{ status.running_count }}</b> выполняется</span><i>·</i>
+      <label class="checkbox-label debug-toggle" title="Публиковать через отладочного бота в отладочный чат (DEBUG_TELEGRAM_TOKEN / DEBUG_TARGET_CHAT_ID)">
+        <input type="checkbox" id="debug-toggle" {% if status.debug_publish %}checked{% endif %}> 🐞 debug-чат
+      </label>
+    </div>
+  </div>
+  {% if recent_images %}
+  <div class="hero-strip">
+    {% for r in recent_images %}
+    <a class="hero-thumb" href="/history/{{ r.id }}" title="{{ r.generator_title }} · {{ r.date }}">
+      {% if r.is_video %}
+      <video src="{{ r.media_url }}" preload="metadata" muted></video>
+      {% else %}
+      <img src="{{ r.media_url }}" loading="lazy" alt="{{ r.generator_title }}">
+      {% endif %}
+    </a>
+    {% endfor %}
+    <a class="hero-more" href="/gallery">Вся<br>галерея →</a>
+  </div>
+  {% endif %}
+</div>
+
+<h2 class="section-title">Задачи <span class="hint-inline">расписание по времени сервера (UTC, в шапке); изменения сохраняются сразу</span></h2>
+
+<div class="gen-grid">
+  {% for g in status.generators %}
+  <div class="gen-card {% if g.running %}state-run{% elif g.last_run and g.last_run.status == 'success' %}state-ok{% elif g.last_run and g.last_run.status == 'error' %}state-err{% else %}state-idle{% endif %}"
+       data-key="{{ g.key }}" data-title="{{ g.title }}">
+    <div class="gen-head">
+      <div class="gen-title">{{ g.title }}{% if g.media == 'video' %} 🎬{% endif %}{% if g.debug %} <span title="Debug-публикация: в отладочный чат">🐞</span>{% endif %}</div>
+      <span class="gen-head-right">
+        <a class="gear" href="/jobs/{{ g.key }}" title="Настройки задачи">⚙</a>
+        <span class="dot js-dot dot-idle"></span>
+      </span>
+    </div>
+    {% if g.note %}<div class="gen-note">⚠ {{ g.note }}</div>{% endif %}
+    <div class="gen-meta">
+      <div>Последний: <b class="js-last">—</b></div>
+      <div>Следующий: <b class="js-next">{% if not g.enabled %}выключено{% else %}—{% endif %}</b></div>
+    </div>
+    <div class="gen-controls">
+      <label class="switch" title="Включить в расписание">
+        <input type="checkbox" class="js-enabled" {% if g.enabled %}checked{% endif %}>
+        <span class="slider"></span>
+      </label>
+      <input type="time" class="js-time" value="{{ '%02d:%02d'|format(g.hour, g.minute) }}" title="Время запуска (UTC)">
+      <button class="btn js-run" {% if g.running %}disabled{% endif %}>▶ Запустить</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if archived %}
+<details class="archive-block">
+  <summary>📦 Архив ({{ archived|length }})</summary>
+  <div class="archive-list">
+    {% for g in archived %}
+    <div class="archive-row">
+      <span class="archive-title">{{ g.title }}{% if g.media == 'video' %} 🎬{% endif %}</span>
+      <span class="archive-actions">
+        <a class="btn btn-small btn-ghost" href="/jobs/{{ g.key }}" title="Настройки">⚙</a>
+        <button class="btn btn-small btn-ghost js-archive" data-key="{{ g.key }}"
+                data-title="{{ g.title }}" data-to="0">↩ Вернуть</button>
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+</details>
+{% endif %}
+
+<h2 class="section-title">Последние запуски</h2>
+<table class="table" id="recent-runs">
+  <thead><tr><th>Время</th><th>Генератор</th><th>Триггер</th><th>Статус</th><th>Длительность</th></tr></thead>
+  <tbody><tr><td colspan="5" class="muted">Загрузка…</td></tr></tbody>
+</table>
+<p class="hint"><a href="/runs">Все запуски и логи →</a></p>
+{% endblock %}

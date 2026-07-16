@@ -15,6 +15,10 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 # Target Group Chat ID
 TARGET_CHAT_ID = os.getenv("TARGET_CHAT_ID")
 
+# Debug-режим публикаций: отдельный бот и чат (тумблер на дашборде веб-панели)
+DEBUG_TELEGRAM_TOKEN = os.getenv("DEBUG_TELEGRAM_TOKEN")
+DEBUG_TARGET_CHAT_ID = os.getenv("DEBUG_TARGET_CHAT_ID")
+
 PROXY_URL = os.getenv("PROXY_URL")
 GEMINI_API_KEYS = os.getenv("GEMINI_API_KEYS").split(",")
 
