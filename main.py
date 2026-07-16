@@ -1,5 +1,5 @@
 import asyncio
-from bot.scheduler import start_scheduler
+from runners.scheduler import start_scheduler
 
 async def main():
     print("Запуск бота...")

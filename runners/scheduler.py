@@ -1,14 +1,14 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from bot.daily_runner import send_daily_story
-from bot.kandinsky_runner import send_kandinsky_story
-from bot.midjourney_runner import send_midjourney_story
-from bot.midjourney_video_runner import send_midjourney_video_story
-from bot.best_image_video_runner import send_best_image_video_story
-from bot.dalle_runner import send_dalle_story
-from bot.flux_runner import send_flux_story
-from bot.yandex_runner import send_yandex_story
-from bot.gemini_image_runner import send_gemini_image_story
-from bot.zimage_runner import send_zimage_story
+from runners.daily_runner import send_daily_story
+from runners.kandinsky_runner import send_kandinsky_story
+from runners.midjourney_runner import send_midjourney_story
+from runners.midjourney_video_runner import send_midjourney_video_story
+from runners.best_image_video_runner import send_best_image_video_story
+from runners.dalle_runner import send_dalle_story
+from runners.flux_runner import send_flux_story
+from runners.yandex_runner import send_daily_story as send_yandex_story
+from runners.gemini_image_runner import send_gemini_image_story
+from runners.zimage_runner import send_zimage_story
 import logging
 
 # Настройка логирования

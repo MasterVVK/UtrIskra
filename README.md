@@ -96,7 +96,7 @@ python main.py
 
 ### Запуск Telegram-бота
 ```bash
-python bot/telegram_bot.py
+python runners/telegram_bot.py
 ```
 
 ### Запуск раннеров
