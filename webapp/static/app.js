@@ -472,18 +472,24 @@ function bindJobSettingsPage() {
   $("#jf-save-run").addEventListener("click", async () => {
     const debugOn = $("#jf-debug").checked;
     if (!debugOn && !confirm("🐞 Debug у задачи выключен — результат уйдёт в боевой канал. Запустить?")) return;
+    const btn = $("#jf-save-run");
+    btn.disabled = true;
     try {
       const r = await postJSON(`/api/jobs/${key}`, collectJobForm());
-      toast(r.prompt_saved
-        ? `Сохранено (промпт v${r.prompt_version}), запускаю…`
-        : "Сохранено, запускаю…");
+      const saved = r.prompt_saved ? `Сохранено (промпт v${r.prompt_version})` : "Сохранено";
       try {
         await postJSON(`/api/run/${key}`, {});
+        toast(`${saved}, запущено — лог справа`);
       } catch (e) {
         if (!e.message.includes("уже выполняется")) throw e;
+        toast(`${saved}. Предыдущий запуск ещё идёт (лог справа) — изменения применятся к следующему`);
       }
       openDrawer(key, { modal: false }); // форма остаётся активной, лог сбоку
-    } catch (e) { toast("Ошибка: " + e.message, true); }
+    } catch (e) {
+      toast("Ошибка: " + e.message, true);
+    } finally {
+      btn.disabled = false;
+    }
   });
 }
 
