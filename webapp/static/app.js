@@ -98,6 +98,16 @@ async function refreshStatus() {
     btn.textContent = g.running ? "⏳ Выполняется…" : "▶ Запустить";
   }
 
+  // пересортировка карточек по времени расписания (payload уже отсортирован);
+  // не трогаем DOM, пока фокус внутри сетки (например, редактируется время)
+  const grid = document.querySelector(".gen-grid");
+  if (grid && !grid.contains(document.activeElement)) {
+    for (const g of data.generators) {
+      const card = grid.querySelector(`.gen-card[data-key="${g.key}"]`);
+      if (card) grid.appendChild(card);
+    }
+  }
+
   renderRecentRuns(data.recent_runs);
 }
 

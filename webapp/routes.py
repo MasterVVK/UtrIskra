@@ -56,6 +56,8 @@ def _status_payload():
     generators = [_generator_status(g, schedule.get(g.key, {
         "enabled": False, "hour": g.default_hour, "minute": g.default_minute,
     })) for g in registry.get_generators() if not g.archived]
+    # порядок «расписание дня»: по времени запуска
+    generators.sort(key=lambda g: (g["hour"] * 60 + g["minute"], g["title"]))
     return {
         "server_now": _now_iso(),
         "generators": generators,
