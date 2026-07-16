@@ -453,9 +453,11 @@ function bindJobSettingsPage() {
     };
     try {
       const r = await postJSON(`/api/jobs/${key}`, body);
-      toast(r.prompt_saved
-        ? `Сохранено; промпт — новая версия ${r.prompt_version}`
-        : "Настройки сохранены (промпт без изменений)");
+      // возврат на дашборд; тост покажется уже там (параметр saved)
+      const message = r.prompt_saved
+        ? `Сохранено, промпт — версия ${r.prompt_version}`
+        : "Настройки сохранены";
+      location.href = "/?saved=" + encodeURIComponent(message);
     } catch (e) { toast("Ошибка сохранения: " + e.message, true); }
   });
 }
@@ -474,6 +476,13 @@ function bindArchiveButtons() {
 document.addEventListener("DOMContentLoaded", () => {
   $$(".js-dt").forEach(el => { el.textContent = fmtDt(el.dataset.iso); });
   bindArchiveButtons();
+
+  // тост после редиректа (например, «Настройки сохранены» со страницы задачи)
+  const savedMessage = new URLSearchParams(location.search).get("saved");
+  if (savedMessage) {
+    toast(savedMessage);
+    history.replaceState(null, "", location.pathname);
+  }
   refreshStatus();
   const page = document.body.dataset.page;
   if (page === "dashboard") {
