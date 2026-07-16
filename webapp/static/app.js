@@ -172,11 +172,131 @@ function bindDashboard() {
         if (!res.ok) throw new Error(data.detail || res.statusText);
         toast(`«${title}» запущен`);
         refreshStatus();
+        openDrawer(key); // сразу показываем живой лог запуска
       } catch (e) {
         toast("Не удалось запустить: " + e.message, true);
       }
     });
   });
+}
+
+// ------------------------------------------------------- панель задачи (drawer)
+
+const drawer = { key: null, title: "", timer: null };
+
+function openDrawer(key) {
+  if (!$("#drawer")) return;
+  drawer.key = key;
+  $("#drawer-overlay").hidden = false;
+  $("#drawer").hidden = false;
+  requestAnimationFrame(() => {
+    $("#drawer-overlay").classList.add("open");
+    $("#drawer").classList.add("open");
+  });
+  const logEl = $("#drawer-log");
+  logEl.textContent = "Загрузка…";
+  delete logEl.dataset.loaded;
+  refreshDrawer();
+  clearInterval(drawer.timer);
+  drawer.timer = setInterval(refreshDrawer, 3500);
+}
+
+function closeDrawer() {
+  if (!$("#drawer") || drawer.key === null) return;
+  drawer.key = null;
+  clearInterval(drawer.timer);
+  $("#drawer-overlay").classList.remove("open");
+  $("#drawer").classList.remove("open");
+  setTimeout(() => {
+    if (drawer.key === null) { $("#drawer-overlay").hidden = true; $("#drawer").hidden = true; }
+  }, 220);
+}
+
+async function refreshDrawer() {
+  if (!drawer.key) return;
+  let d;
+  try {
+    const res = await fetch(`/api/jobs/${drawer.key}/card`);
+    if (!res.ok) return;
+    d = await res.json();
+  } catch (e) { return; }
+  if (d.key !== drawer.key) return;
+  drawer.title = d.title;
+
+  $("#drawer-title").textContent =
+    `${d.title}${d.media === "video" ? " 🎬" : ""}${d.debug ? " 🐞" : ""}${d.archived ? " 📦" : ""}`;
+  const parts = [];
+  if (d.running) parts.push("⏳ выполняется…");
+  else if (d.last_run) parts.push(`${STATUS_TITLES[d.last_run.status] || d.last_run.status} · ${fmtDt(d.last_run.started_at)} · ${fmtDur(d.last_run.duration)}`);
+  else parts.push("ещё не запускалась");
+  parts.push(d.enabled && d.next_run ? `следующий: ${fmtDt(d.next_run)}` : "расписание выключено");
+  $("#drawer-sub").textContent = parts.join("  ·  ");
+
+  const runBtn = $("#drawer-run");
+  runBtn.disabled = d.running || d.archived;
+  runBtn.textContent = d.running ? "⏳ Выполняется…" : (d.archived ? "📦 В архиве" : "▶ Запустить");
+
+  const dbg = $("#drawer-debug");
+  if (document.activeElement !== dbg) dbg.checked = d.debug;
+  dbg.disabled = d.pipeline === "legacy";
+  $("#drawer-debug-wrap").title = d.pipeline === "legacy"
+    ? "Legacy-раннер публикует напрямую — debug не действует"
+    : "Публиковать эту задачу в отладочный чат";
+
+  $("#drawer-settings").href = `/jobs/${d.key}`;
+  $("#drawer-full-log").href = `/logs?job=${d.key}`;
+
+  $("#drawer-images").innerHTML = d.images.map(im => `
+    <a href="/history/${im.id}" title="${escapeHtml(im.date)}">
+      ${im.is_video
+        ? `<video src="${im.url}" muted preload="metadata"></video>`
+        : `<img src="${im.url}" loading="lazy" alt="">`}
+    </a>`).join("");
+
+  const logEl = $("#drawer-log");
+  const wasAtBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 40;
+  logEl.textContent = d.log || "(запусков ещё не было)";
+  if (wasAtBottom || !logEl.dataset.loaded) {
+    logEl.scrollTop = logEl.scrollHeight;
+    logEl.dataset.loaded = "1";
+  }
+  $("#drawer-log-state").textContent = d.running ? "· идёт запуск, лог обновляется" : "";
+}
+
+function bindDrawer() {
+  if (!$("#drawer")) return;
+  $("#drawer-close").addEventListener("click", closeDrawer);
+  $("#drawer-overlay").addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+
+  $("#drawer-run").addEventListener("click", async () => {
+    if (!confirm(`Запустить «${drawer.title}» сейчас? Результат будет опубликован в Telegram.`)) return;
+    try {
+      await postJSON(`/api/run/${drawer.key}`, {});
+      toast(`«${drawer.title}» запущен — лог ниже живой`);
+      refreshDrawer();
+      refreshStatus();
+    } catch (e) { toast("Не удалось запустить: " + e.message, true); }
+  });
+
+  $("#drawer-debug").addEventListener("change", async e => {
+    try {
+      await postJSON(`/api/jobs/${drawer.key}`, { publish: { debug: e.target.checked } });
+      toast(e.target.checked
+        ? "🐞 Задача публикует в отладочный чат"
+        : "Задача публикует в боевой канал");
+      refreshDrawer();
+      refreshStatus();
+    } catch (err) {
+      e.target.checked = !e.target.checked;
+      toast("Ошибка: " + err.message, true);
+    }
+  });
+
+  $$(".gen-card").forEach(card => card.addEventListener("click", e => {
+    if (e.target.closest("button, a, input, label, select")) return;
+    openDrawer(card.dataset.key);
+  }));
 }
 
 function bindRunsPage() {
@@ -358,6 +478,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const page = document.body.dataset.page;
   if (page === "dashboard") {
     bindDashboard();
+    bindDrawer();
     setInterval(refreshStatus, 5000);
   }
   if (page === "runs") bindRunsPage();

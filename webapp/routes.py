@@ -419,6 +419,37 @@ async def api_job_archive(key: str, update: ArchiveUpdate):
     return {"ok": True, "archived": update.archived}
 
 
+@router.get("/api/jobs/{key}/card")
+def api_job_card(key: str):
+    """Всё для выдвижной панели задачи: статус, лог последнего запуска, работы."""
+    generator = registry.get_generator(key)
+    if generator is None:
+        raise HTTPException(404, f"Неизвестная задача: {key}")
+    entry = schedule_store.load_schedule().get(key, {
+        "enabled": False, "hour": generator.default_hour, "minute": generator.default_minute})
+    next_run = state.scheduler_service.next_run(key)
+    images, _ = db.fetch_records(page=1, per_page=4, generator_key=key)
+    return {
+        "key": key,
+        "title": generator.title,
+        "pipeline": generator.pipeline,
+        "media": generator.media,
+        "note": generator.note,
+        "archived": generator.archived,
+        "debug": generator.debug,
+        "enabled": entry["enabled"],
+        "hour": entry["hour"],
+        "minute": entry["minute"],
+        "next_run": next_run.isoformat(timespec="seconds") if next_run else None,
+        "running": state.task_manager.is_running(key),
+        "last_run": state.task_manager.last_run_for(key),
+        "log": "\n".join(state.task_manager.job_logs(key, run_count=1)) or None,
+        "images": [{"id": r["id"], "url": r["media_url"], "is_video": r["is_video"],
+                    "date": r["date"]}
+                   for r in images if r["media_url"] and r["file_exists"]],
+    }
+
+
 class JobUpdate(BaseModel):
     title: Optional[str] = None
     prompt: Optional[dict] = None       # {"system": str, "user": str} -> новая версия в БД
@@ -485,13 +516,15 @@ async def api_job_save(key: str, update: JobUpdate):
         }
 
     if update.publish is not None:
-        chat_id = update.publish.get("chat_id")
-        debug = bool(update.publish.get("debug", False))
+        # частичное обновление: не пришедшие поля берём из текущих значений
+        current = job.get("publish", {})
+        chat_id = update.publish.get("chat_id", current.get("chat_id"))
+        debug = bool(update.publish.get("debug", current.get("debug", False)))
         if debug and not debug_configured():
             raise HTTPException(400, "Для debug-публикации заполните DEBUG_TELEGRAM_TOKEN "
                                      "и DEBUG_TARGET_CHAT_ID в .env и перезапустите сервис")
         try:
-            retries = min(max(int(update.publish.get("retries", 0)), 0), 10)
+            retries = min(max(int(update.publish.get("retries", current.get("retries", 0))), 0), 10)
         except (TypeError, ValueError):
             raise HTTPException(400, "Некорректное число ретраев")
         job["publish"] = {"chat_id": (str(chat_id).strip() or None) if chat_id else None,
