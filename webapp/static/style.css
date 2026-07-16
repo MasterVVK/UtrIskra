@@ -224,6 +224,13 @@ textarea.cfg-edit, textarea.prompt-edit {
 .field-wide { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; font-size: 13px; }
 .field-wide > span { color: var(--muted); }
 
+/* липкая строка сохранения на странице задачи — не скроллить вниз при подборе промпта */
+.save-row {
+  position: sticky; bottom: 0; z-index: 10;
+  display: flex; gap: 10px; padding: 14px 0 16px; margin-bottom: 0;
+  background: linear-gradient(transparent, var(--bg) 35%);
+}
+
 /* ---------- выдвижная панель задачи ---------- */
 .gen-card { cursor: pointer; transition: box-shadow .15s; }
 .gen-card:hover { box-shadow: 0 4px 20px rgba(255, 140, 80, .09); }

@@ -85,26 +85,4 @@
   <tbody><tr><td colspan="5" class="muted">Загрузка…</td></tr></tbody>
 </table>
 <p class="hint"><a href="/runs">Все запуски и логи →</a></p>
-
-<div class="drawer-overlay" id="drawer-overlay" hidden></div>
-<aside class="drawer" id="drawer" hidden>
-  <div class="drawer-head">
-    <div>
-      <div class="drawer-title" id="drawer-title">—</div>
-      <div class="drawer-sub muted" id="drawer-sub"></div>
-    </div>
-    <button class="drawer-close" id="drawer-close" title="Закрыть (Esc)">✕</button>
-  </div>
-  <div class="drawer-actions">
-    <button class="btn" id="drawer-run">▶ Запустить</button>
-    <label class="checkbox-label" id="drawer-debug-wrap" title="Публиковать эту задачу в отладочный чат">
-      <input type="checkbox" id="drawer-debug"> 🐞 debug
-    </label>
-    <a class="btn btn-small btn-ghost" id="drawer-settings" href="#">⚙ Настройки</a>
-    <a class="btn btn-small btn-ghost" id="drawer-full-log" href="#">Весь лог</a>
-  </div>
-  <div class="drawer-images" id="drawer-images"></div>
-  <div class="drawer-log-head hint">Лог последнего запуска <span id="drawer-log-state"></span></div>
-  <pre class="log drawer-log" id="drawer-log">—</pre>
-</aside>
 {% endblock %}

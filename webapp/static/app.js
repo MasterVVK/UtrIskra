@@ -184,15 +184,19 @@ function bindDashboard() {
 
 const drawer = { key: null, title: "", timer: null };
 
-function openDrawer(key) {
+function openDrawer(key, opts = {}) {
   if (!$("#drawer")) return;
+  const modal = opts.modal !== false; // немодальный режим — страница остаётся активной
   drawer.key = key;
-  $("#drawer-overlay").hidden = false;
+  if (modal) {
+    $("#drawer-overlay").hidden = false;
+    requestAnimationFrame(() => $("#drawer-overlay").classList.add("open"));
+  } else {
+    $("#drawer-overlay").classList.remove("open");
+    $("#drawer-overlay").hidden = true;
+  }
   $("#drawer").hidden = false;
-  requestAnimationFrame(() => {
-    $("#drawer-overlay").classList.add("open");
-    $("#drawer").classList.add("open");
-  });
+  requestAnimationFrame(() => $("#drawer").classList.add("open"));
   const logEl = $("#drawer-log");
   logEl.textContent = "Загрузка…";
   delete logEl.dataset.loaded;
@@ -427,12 +431,12 @@ function bindJobSettingsPage() {
     } catch (err) { toast("Ошибка смены провайдера: " + err.message, true); }
   });
 
-  $("#jf-save").addEventListener("click", async () => {
+  function collectJobForm() {
     const params = {};
     $$(".jf-param").forEach(el => {
       params[el.dataset.key] = el.dataset.kind === "bool" ? el.checked : el.value;
     });
-    const body = {
+    return {
       prompt: {
         system: $("#jf-prompt-system").value,
         user: $("#jf-prompt-user").value,
@@ -451,14 +455,35 @@ function bindJobSettingsPage() {
         debug: $("#jf-debug").checked,
       },
     };
+  }
+
+  // «закончил»: сохранить и вернуться на дашборд
+  $("#jf-save").addEventListener("click", async () => {
     try {
-      const r = await postJSON(`/api/jobs/${key}`, body);
-      // возврат на дашборд; тост покажется уже там (параметр saved)
+      const r = await postJSON(`/api/jobs/${key}`, collectJobForm());
       const message = r.prompt_saved
         ? `Сохранено, промпт — версия ${r.prompt_version}`
         : "Настройки сохранены";
       location.href = "/?saved=" + encodeURIComponent(message);
     } catch (e) { toast("Ошибка сохранения: " + e.message, true); }
+  });
+
+  // цикл подбора промпта: сохранить, запустить, живой лог здесь же
+  $("#jf-save-run").addEventListener("click", async () => {
+    const debugOn = $("#jf-debug").checked;
+    if (!debugOn && !confirm("🐞 Debug у задачи выключен — результат уйдёт в боевой канал. Запустить?")) return;
+    try {
+      const r = await postJSON(`/api/jobs/${key}`, collectJobForm());
+      toast(r.prompt_saved
+        ? `Сохранено (промпт v${r.prompt_version}), запускаю…`
+        : "Сохранено, запускаю…");
+      try {
+        await postJSON(`/api/run/${key}`, {});
+      } catch (e) {
+        if (!e.message.includes("уже выполняется")) throw e;
+      }
+      openDrawer(key, { modal: false }); // форма остаётся активной, лог сбоку
+    } catch (e) { toast("Ошибка: " + e.message, true); }
   });
 }
 
@@ -484,10 +509,10 @@ document.addEventListener("DOMContentLoaded", () => {
     history.replaceState(null, "", location.pathname);
   }
   refreshStatus();
+  bindDrawer(); // панель задачи доступна на всех страницах
   const page = document.body.dataset.page;
   if (page === "dashboard") {
     bindDashboard();
-    bindDrawer();
     setInterval(refreshStatus, 5000);
   }
   if (page === "runs") bindRunsPage();
