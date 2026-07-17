@@ -13,7 +13,7 @@ class Generator:
     default_hour: int
     default_minute: int
     note: str
-    pipeline: str          # "image" | "legacy"
+    pipeline: str          # "image" | "midjourney_video" | "best_image_video"
     archived: bool         # в архиве: скрыт с дашборда, расписание отключено
     debug: bool            # публикация этой задачи идёт в отладочный чат
 

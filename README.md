@@ -1,120 +1,83 @@
 # UtrIskra
 
-**UtrIskra** - проект для автоматической генерации и публикации визуальных историй с использованием различных AI-генераторов, таких как Stability AI, Flux, Yandex-Art, MidJourney, и других. Проект включает функционал для интеграции с Telegram и автоматической отправки результатов.
+**UtrIskra** — система ежедневной генерации и публикации AI-изображений в Telegram.
+Веб-панель управляет задачами генерации: расписание, промпты с версионированием,
+выбор LLM- и image-провайдеров, debug-публикация, галерея и логи.
+
+Поддерживаемые генераторы: Stability AI, MidJourney (Kolersky), DALL-E / gpt-image,
+Flux (BFL), Kandinsky (FusionBrain), Yandex Art, Gemini Image, Qwen Chat и любые
+self-hosted серверы с task-API (Qwen-Image, Z-Image, ERNIE, HiDream, …).
+Промпты генерируются цепочкой LLM (Gemini → OpenAI-совместимый fallback:
+Ollama / vLLM / Qwen2API и т.п.).
 
 ---
 
-## Основные возможности
+## Архитектура
 
-- **Генерация изображений:**
-  - Работа с популярными AI-сервисами: Stability AI, Flux, Yandex-Art, MidJourney.
-  - Генерация промптов через Gemini Pro.
-  - Возможность персонализации промптов и настройки параметров генерации.
+```
+webapp/      FastAPI-панель: дашборд, галерея, история, запуски, логи,
+             настройки задач и провайдеров, встроенный APScheduler
+core/        пайплайны (image / midjourney_video / best_image_video),
+             задачи (jobs.json), промпты (SQLite, версии), публикация
+providers/   адаптеры LLM и генераторов изображений (единый интерфейс)
+services/    низкоуровневые обёртки API (midjourney, kandinsky, yandex, qwen_chat)
+utils/       SQLite, водяной знак, логирование
+storage/     runtime: изображения, база, конфиги панели (вне git)
+```
 
-- **Публикация в Telegram:**
-  - Автоматическая отправка изображений в Telegram-чат.
-  - Использование Telethon и Aiogram для взаимодействия с Telegram API.
+Пайплайн `image`: промпт из БД (+плейсхолдеры) → цепочка LLM → image-провайдер →
+водяной знак → SQLite → Telegram. Видео-пайплайны: MidJourney кадр → публикация →
+image-to-video; best-of — самое популярное фото группы по реакциям (Telethon) →
+CDN → видео.
 
-- **Работа с базой данных:**
-  - Сохранение метаданных о сгенерированных изображениях.
-  - Организация файлового хранения результатов генерации.
-
----
-
-## Структура проекта
-
-**Основные файлы:**
-- `main.py`: Запуск планировщика задач для автоматической публикации историй.
-- `config.py`: Конфигурационный файл с настройками и API-ключами.
-
-**Модули:**
-1. **Утилиты (`utils`):**
-   - `database.py`: Управление базой данных SQLite.
-   - `logger.py`: Настройка логирования.
-
-2. **Сервисы (`services`):**
-   - `gemini_service.py`: Взаимодействие с Gemini Pro для генерации текстовых промптов.
-   - `stability_service.py`: Использование Stability AI для генерации изображений.
-   - `flux_service.py`: Взаимодействие с Flux API для генерации изображений.
-   - `midjourney_service.py`: Поддержка MidJourney API.
-   - `yandex_service.py`: Работа с Yandex-Art для художественной генерации.
-
-3. **Бот (`bot`):**
-   - `telegram_bot.py`: Telegram-бот для управления генерацией и публикацией.
-   - `scheduler.py`: Планировщик задач для автоматической публикации историй.
-   - `story_sender.py`: Отправка историй через Telegram.
-   - `create_telegram_session.py`: Скрипт для настройки сессии Telethon.
-
-4. **Раннеры:**
-   - `daily_runner.py`: Генерация изображений через Stability AI.
-   - `flux_runner.py`: Использование Flux для создания историй.
-   - `yandex_runner.py`: Интеграция с Yandex-Art.
-   - `midjourney_runner.py`: Генерация через MidJourney.
+Подробности: [docs/webapp.md](docs/webapp.md),
+[docs/architecture-providers.md](docs/architecture-providers.md).
 
 ---
 
 ## Установка
 
-1. Клонируйте репозиторий:
+1. Клонируйте репозиторий и установите зависимости:
    ```bash
    git clone https://github.com/MasterVVK/UtrIskra.git
    cd UtrIskra
+   python -m venv .venv && .venv/bin/pip install -r requirements.txt
    ```
 
-2. Установите зависимости:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Создайте файл `.env` и добавьте API-ключи:
+2. Создайте `.env` (ключи — по используемым провайдерам):
    ```env
-   STABILITY_API_KEY=ваш_ключ
-   GEMINI_API_KEY=ваш_ключ
-   TELEGRAM_TOKEN=ваш_токен
-   TARGET_CHAT_ID=ваш_chat_id
-   BFL_API_KEY=ваш_flux_ключ
-   FOLDER_ID=ваш_folder_id
-   OAUTH_TOKEN=ваш_yandex_oauth_token
-   BASE_STORAGE_PATH=storage
-   FONTS_PATH=fonts
+   TELEGRAM_TOKEN=токен_бота
+   TARGET_CHAT_ID=id_канала
+   DEBUG_TELEGRAM_TOKEN=токен_отладочного_бота   # опционально, для debug-режима
+   DEBUG_TARGET_CHAT_ID=id_отладочного_чата
+   GEMINI_API_KEYS=ключ1,ключ2
+   PROXY_URL=socks5://...                        # прокси для Gemini
+   BASE_STORAGE_PATH=/абсолютный/путь/к/storage
+   FONTS_PATH=/абсолютный/путь/к/fonts
+   STABILITY_API_KEY=... MIDJOURNEY_API_TOKEN=... OPENAI_API_KEY=...
+   BFL_API_KEY=... KANDINSKY_API_KEY=... KANDINSKY_SECRET_KEY=...
+   YANDEX_API_KEY=... FOLDER_ID=...
+   TELETHON_API_ID=... TELETHON_API_HASH=... TELETHON_PEER=...   # для best-of
    ```
 
-4. Настройте базу данных:
+3. Запустите панель:
    ```bash
-   python utils/database.py
+   python run_web.py                # http://хост:8090
    ```
+   Для продакшена — systemd-юнит `deploy/utriskra-web.service`.
 
 ---
 
 ## Использование
 
-### Запуск планировщика задач
-Для автоматической публикации историй:
-```bash
-python main.py
-```
+- **Веб-панель** — основная точка управления: включение расписаний, ручной
+  запуск с живым логом, редактирование промптов (версии в БД), настройка
+  провайдеров, архив задач, debug-публикация в отдельный чат.
+- **CLI**: `python -m core.run <ключ задачи>` (ключи — в `storage/webapp/jobs.json`).
+- **Best-of** требует разовой авторизации Telethon:
+  `python -m core.telethon_login`.
 
-### Запуск Telegram-бота
-```bash
-python runners/telegram_bot.py
-```
+## База данных (`storage/database/daily_images.db`)
 
-### Запуск раннеров
-- Stability AI: `python daily_runner.py`
-- Flux: `python flux_runner.py`
-- Yandex: `python yandex_runner.py`
-- MidJourney: `python midjourney_runner.py`
-
----
-
-## Дополнительная информация
-
-**Файлы базы данных (`daily_images.db`):**
-- `id`: Уникальный идентификатор.
-- `date`: Дата создания изображения.
-- `system_prompt`: Системный промпт.
-- `user_prompt`: Промпт пользователя.
-- `generated_prompt`: Итоговый промпт.
-- `image_path`: Путь к изображению.
-
----
+- `daily_images`: id, date, system_prompt, user_prompt, generated_prompt, image_path
+- `job_prompts`: версии промптов задач (последняя — актуальная)

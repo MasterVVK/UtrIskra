@@ -35,13 +35,21 @@ def _image_job(title, prefix, prompt_file, letter, image_provider, image_params,
     }
 
 
-def _legacy_job(title, prefix, extra, media, module, func, hour, minute, note=""):
+def _video_job(title, prefix, extra, prompt_file, letter, hour, minute,
+               *, temperature=1.0, note=""):
     return {
-        "title": title, "pipeline": "legacy", "media": media,
+        "title": title, "pipeline": "midjourney_video", "media": "video",
         "file_prefix": prefix, "extra_prefixes": extra,
-        "module": module, "func": func,
+        "prompt_file": prompt_file,
+        "llm": {"provider": None, "temperature": temperature,
+                "max_theme": 10, "max_category": 14},
+        "video": {"aspect_ratio": "16:9",
+                  "prompt": "gentle movement, cinematic camera motion",
+                  "motion": "high", "task_type": "image-to-video-hd"},
+        "watermark": {"enabled": True, "letter": letter},
+        "publish": {"chat_id": None, "retries": 0, "debug": False},
         "default_hour": hour, "default_minute": minute,
-        "note": note or "Legacy-раннер: настройки появятся после перевода на пайплайн",
+        "note": note,
     }
 
 
@@ -54,9 +62,10 @@ def _default_jobs():
         "kandinsky": _image_job(
             "Kandinsky", "kandinsky_story", "kandinsky_runner.txt", "K", "kandinsky",
             {"width": 1344, "height": 768}, 8, 0, temperature=1.0),
-        "midjourney": _legacy_job(
-            "MidJourney", "midjourney_story", [], "image",
-            "runners.midjourney_runner", "send_midjourney_story", 9, 0),
+        "midjourney": _image_job(
+            "MidJourney", "midjourney_story", "midjourney_runner.txt", "M", "midjourney",
+            {"aspect_ratio": "16:9", "speed": "relaxed", "crop_position": "1"},
+            9, 0, temperature=1.0),
         "dalle": _image_job(
             "DALL-E", "dalle_image", "dalle_runner.txt", "D", "dalle",
             {"model": "gpt-image-2", "size": "1536x1024", "quality": "auto"},
@@ -70,13 +79,20 @@ def _default_jobs():
         "gemini_image": _image_job(
             "Gemini Image", "gemini_image_story", "gemini_image_runner.txt", "G",
             "gemini_image", {"model": "gemini-2.5-flash-image"}, 13, 0),
-        "midjourney_video": _legacy_job(
-            "MidJourney Video", "midjourney_video", ["midjourney_video_image"], "video",
-            "runners.midjourney_video_runner", "send_midjourney_video_story", 14, 0),
-        "best_image_video": _legacy_job(
-            "Best Image Video", "best_image_video", ["best_image"], "video",
-            "runners.best_image_video_runner", "send_best_image_video_story", 15, 0,
-            note="Требует авторизованную Telethon-сессию; legacy-раннер"),
+        "midjourney_video": _video_job(
+            "MidJourney Video", "midjourney_video", ["midjourney_video_image"],
+            "midjourney_video_runner.txt", "MV", 14, 0),
+        "best_image_video": {
+            "title": "Best Image Video", "pipeline": "best_image_video", "media": "video",
+            "file_prefix": "best_image_video", "extra_prefixes": ["best_image"],
+            "bestof": {"period_days": 7,
+                       "video_prompt": "gentle movement, cinematic camera motion",
+                       "motion": "high", "task_type": "image-to-video-hd"},
+            "watermark": {"enabled": False, "letter": ""},
+            "publish": {"chat_id": None, "retries": 0, "debug": False},
+            "default_hour": 15, "default_minute": 0,
+            "note": "Требует авторизованную Telethon-сессию",
+        },
         "zimage": _image_job(
             "Z-Image", "zimage_story", "zimage_runner.txt", "Z", "zimage",
             {"model": "base", "aspect_ratio": "16:9", "num_inference_steps": 30,
@@ -104,6 +120,23 @@ def _default_jobs():
     }
 
 
+def _upgrade_jobs(data: dict) -> bool:
+    """Самолечение записей из прежних версий кода (pipeline «legacy» и т.п.)."""
+    changed = False
+    defaults = _default_jobs()
+    for key, job in list(data.items()):
+        if job.get("pipeline") == "legacy" and key in defaults:
+            fresh = dict(defaults[key])
+            fresh["archived"] = job.get("archived", False)
+            if job.get("title"):
+                fresh["title"] = job["title"]
+            data[key] = fresh
+            logger.info("Задача «%s» обновлена с legacy на пайплайн «%s»",
+                        key, fresh["pipeline"])
+            changed = True
+    return changed
+
+
 def load_jobs() -> dict:
     """Читает jobs.json (с кэшем по mtime); при первом обращении создаёт из дефолтов."""
     with _lock:
@@ -120,6 +153,9 @@ def load_jobs() -> dict:
         except (OSError, json.JSONDecodeError) as exc:
             logger.error("Не удалось прочитать %s: %s — использую дефолты", JOBS_PATH, exc)
             return _default_jobs()
+        if _upgrade_jobs(data):
+            _write(data)
+            mtime = os.path.getmtime(JOBS_PATH)
         _cache.update(mtime=mtime, data=data)
         return data
 

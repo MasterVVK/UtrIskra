@@ -203,7 +203,8 @@ def job_settings(request: Request, key: str):
         except Exception as exc:
             image_fields = []
             job = dict(job, note=f"Провайдер «{provider_name}» не собрался: {exc}")
-    prompt = prompts_store.get_prompt(key) if job.get("pipeline") == "image" else None
+    prompt = prompts_store.get_prompt(key) \
+        if job.get("pipeline") in ("image", "midjourney_video") else None
     return templates.TemplateResponse(request, "job_settings.html", {
         "nav": "dashboard", "key": key, "job": job,
         "image_fields": image_fields,
@@ -457,8 +458,24 @@ class JobUpdate(BaseModel):
     prompt: Optional[dict] = None       # {"system": str, "user": str} -> новая версия в БД
     llm: Optional[dict] = None
     image: Optional[dict] = None
+    video: Optional[dict] = None        # пайплайн midjourney_video
+    bestof: Optional[dict] = None       # пайплайн best_image_video
     watermark: Optional[dict] = None
     publish: Optional[dict] = None
+
+
+VIDEO_TASK_TYPES = ("image-to-video", "image-to-video-hd")
+MOTION_VALUES = ("low", "high")
+
+
+def _validated_mj_video(payload: dict, current: dict, prompt_key: str) -> dict:
+    """Общая валидация видео-настроек MidJourney (video и bestof секции)."""
+    motion = payload.get("motion", current.get("motion", "high"))
+    task_type = payload.get("task_type", current.get("task_type", "image-to-video-hd"))
+    if motion not in MOTION_VALUES or task_type not in VIDEO_TASK_TYPES:
+        raise HTTPException(400, "Некорректные параметры видео")
+    return {prompt_key: str(payload.get(prompt_key, current.get(prompt_key, ""))).strip(),
+            "motion": motion, "task_type": task_type}
 
 
 @router.post("/api/jobs/{key}")
@@ -467,15 +484,14 @@ async def api_job_save(key: str, update: JobUpdate):
         job = dict(jobs_store.get_job(key))
     except KeyError:
         raise HTTPException(404, "Задача не найдена")
-    if job.get("pipeline") != "image":
-        raise HTTPException(400, "Настройки доступны только для задач пайплайна image")
+    pipeline = job.get("pipeline", "image")
     data = providers_store.load_providers()
 
     if update.title is not None and update.title.strip():
         job["title"] = update.title.strip()[:60]
 
     prompt_saved = False
-    if update.prompt is not None:
+    if update.prompt is not None and pipeline in ("image", "midjourney_video"):
         user_prompt = str(update.prompt.get("user", "")).strip()
         system_prompt = str(update.prompt.get("system", "")).strip()
         if not user_prompt:
@@ -499,7 +515,27 @@ async def api_job_save(key: str, update: JobUpdate):
             raise HTTPException(400, "Некорректные числовые значения LLM-настроек")
         job["llm"] = llm
 
-    if update.image is not None:
+    if update.video is not None and pipeline == "midjourney_video":
+        current = job.get("video", {})
+        job["video"] = {
+            "aspect_ratio": str(update.video.get("aspect_ratio",
+                                current.get("aspect_ratio", "16:9"))),
+            **_validated_mj_video(update.video, current, "prompt"),
+        }
+
+    if update.bestof is not None and pipeline == "best_image_video":
+        current = job.get("bestof", {})
+        try:
+            period_days = min(max(int(update.bestof.get("period_days",
+                                      current.get("period_days", 7))), 1), 90)
+        except (TypeError, ValueError):
+            raise HTTPException(400, "Некорректный период выборки")
+        job["bestof"] = {
+            "period_days": period_days,
+            **_validated_mj_video(update.bestof, current, "video_prompt"),
+        }
+
+    if update.image is not None and pipeline == "image":
         provider_name = update.image.get("provider") or job["image"]["provider"]
         if provider_name not in data["image"]:
             raise HTTPException(400, f"Image-провайдер «{provider_name}» не найден")

@@ -5,6 +5,12 @@ from config import MIDJOURNEY_API_TOKEN
 
 logger = logging.getLogger(__name__)
 
+
+def extract_output(result: dict) -> dict:
+    """output задачи Kolersky: API отдаёт его на верхнем уровне или в data.output."""
+    return (result.get("output") or (result.get("data") or {}).get("output") or {})
+
+
 class MidjourneyService:
     """Сервис для взаимодействия с API Kolersky Midjourney (v1)."""
 
@@ -19,6 +25,10 @@ class MidjourneyService:
 
     def create_imagine_task(self, prompt: str, aspect_ratio: str = "1:1", speed: str = "relaxed") -> dict:
         """Создание задачи генерации изображения (text-to-image)."""
+        # LLM иногда дописывает пояснения после '---' — MidJourney их не поймёт
+        if "---" in prompt:
+            prompt = prompt.split("---")[0].strip()
+            logger.warning("Промпт обрезан по '---' (в MJ уходит только описание изображения)")
         # Ограничиваем длину промпта (Midjourney имеет лимит ~600 символов)
         MAX_PROMPT_LENGTH = 600
         if len(prompt) > MAX_PROMPT_LENGTH:
@@ -141,12 +151,9 @@ class MidjourneyService:
             if status == "success":
                 return result
             elif status == "error":
-                # failReason может быть: верхнем уровне, в output, или в data.output
-                fail_reason = (
-                    result.get("failReason") or
-                    result.get("output", {}).get("failReason") or
-                    result.get("data", {}).get("output", {}).get("failReason", "Unknown error")
-                )
+                # failReason может быть на верхнем уровне или внутри output
+                fail_reason = (result.get("failReason")
+                               or extract_output(result).get("failReason", "Unknown error"))
                 logger.error(f"Полный ответ API с ошибкой: {result}")
                 raise Exception(f"Задача {request_id} завершилась с ошибкой: {fail_reason}")
             time.sleep(10)  # Интервал проверки 10 секунд

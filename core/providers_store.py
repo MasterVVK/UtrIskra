@@ -40,6 +40,7 @@ def _defaults():
             "flux": {"type": "flux", "endpoint": "flux-pro-1.1-ultra"},
             "yandex": {"type": "yandex"},
             "gemini_image": {"type": "gemini_image"},
+            "midjourney": {"type": "midjourney"},
             "qwen_chat": {"type": "qwen_chat", "base_url": QWEN_CHAT_API_URL},
             "qwen": {"type": "local_task", "base_url": QWEN_API_URL, "params": [
                 _aspect(),
@@ -95,7 +96,28 @@ def load_providers() -> dict:
         for section in ("llm", "image"):
             data.setdefault(section, {})
         data.setdefault("llm_chain", list(data["llm"].keys())[:1])
-        _cache.update(mtime=mtime, data=data)
+        # домердж инстансов, появившихся в новых версиях кода: каждый дефолт
+        # засевается ровно один раз (метка _seeded), поэтому удалённые
+        # пользователем инстансы не воскресают при следующей загрузке
+        defaults = _defaults()
+        seeded = set(data.get("_seeded") or [])
+        added, marked = [], False
+        for section in ("llm", "image"):
+            for name, config in defaults[section].items():
+                if name in seeded:
+                    continue
+                if name not in data[section]:
+                    data[section][name] = config
+                    added.append(name)
+                seeded.add(name)
+                marked = True
+        if marked:
+            data["_seeded"] = sorted(seeded)
+            if added:
+                logger.info("providers.json: добавлены новые дефолтные инстансы: %s", added)
+            _write(data)
+        else:
+            _cache.update(mtime=mtime, data=data)
         return data
 
 

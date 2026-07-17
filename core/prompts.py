@@ -60,7 +60,7 @@ def save_prompt(job_key: str, system_prompt: str, user_prompt: str) -> bool:
 
 
 def render_user_prompt(user_prompt: str, max_theme: int = 10, max_category: int = 14) -> str:
-    """Подставляет плейсхолдеры (семантика прежнего utils/prompt_utils.py)."""
+    """Подставляет плейсхолдеры в user-часть промпта."""
     current_date = datetime.datetime.now().strftime("%d %B %Y")
     random_theme = str(random.randint(1, max(1, int(max_theme))))
     random_category = str(random.randint(1, max(1, int(max_category))))
@@ -87,17 +87,19 @@ def parse_prompt_file(path: str) -> tuple:
 
 
 def migrate_from_files():
-    """Разовый импорт runners/prompts/*.txt в БД для задач пайплайна image.
+    """Разовый импорт промпт-файлов старого формата в БД (идемпотентно).
 
-    Идемпотентно: задача с уже существующим промптом в БД пропускается.
-    Файлы не удаляются (их используют legacy-раннеры).
+    Работает только там, где каталог PROMPTS_DIR ещё существует (старые
+    развёртывания). В свежей установке промпты задаются в настройках задачи.
     """
     from config import PROMPTS_DIR
     from core import jobs as jobs_store
 
+    if not PROMPTS_DIR or not os.path.isdir(PROMPTS_DIR):
+        return
     imported = 0
     for key, job in jobs_store.load_jobs().items():
-        if job.get("pipeline") != "image" or not job.get("prompt_file"):
+        if not job.get("prompt_file"):
             continue
         if get_prompt(key) is not None:
             continue

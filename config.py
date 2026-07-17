@@ -6,8 +6,6 @@ load_dotenv()
 # Stability AI API Key
 STABILITY_API_KEY = os.getenv("STABILITY_API_KEY")
 
-# Gemini Pro API Key
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Telegram Bot Token
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -20,7 +18,6 @@ DEBUG_TELEGRAM_TOKEN = os.getenv("DEBUG_TELEGRAM_TOKEN")
 DEBUG_TARGET_CHAT_ID = os.getenv("DEBUG_TARGET_CHAT_ID")
 
 PROXY_URL = os.getenv("PROXY_URL")
-GEMINI_API_KEYS = os.getenv("GEMINI_API_KEYS").split(",")
 
 # Telethon API Credentials
 TELETHON_API_ID = os.getenv("TELETHON_API_ID")  # Ваш API ID для Telethon

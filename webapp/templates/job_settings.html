@@ -14,11 +14,9 @@
 {% if job.archived %}<p class="gen-note">📦 Задача в архиве: скрыта с дашборда, расписание отключено. Изображения остаются в галерее и истории.</p>{% endif %}
 {% if job.note %}<p class="gen-note">⚠ {{ job.note }}</p>{% endif %}
 
-{% if job.pipeline == 'legacy' %}
-<p class="empty">Это legacy-раннер ({{ job.module }}.{{ job.func }}) — параметры появятся
-после перевода на пайплайн. Расписание и запуск — на <a href="/">дашборде</a>.</p>
-{% else %}
 <div id="job-form" data-key="{{ key }}">
+
+  {% if job.pipeline in ('image', 'midjourney_video') %}
   <h2>Промпт <span class="muted">{% if prompt %}версия {{ prompt.version }} от {{ prompt.updated_at }}{% else %}ещё не задан{% endif %}</span></h2>
   <p class="hint">Плейсхолдеры в пользовательском промпте: <span class="mono">{{ '{current_date}' }}</span>,
   <span class="mono">{{ '{random_theme}' }}</span> (1..max_theme),
@@ -52,7 +50,9 @@
       <input type="number" id="jf-max-category" min="1" max="100" value="{{ job.llm.max_category }}">
     </label>
   </div>
+  {% endif %}
 
+  {% if job.pipeline == 'image' %}
   <h2>Генерация изображения</h2>
   <div class="form-grid">
     <label class="field"><span>Провайдер</span>
@@ -85,15 +85,71 @@
   </div>
   {% if not image_fields %}<p class="hint">У этого провайдера нет настраиваемых параметров.</p>{% endif %}
   <p class="hint">Смена провайдера сохраняет задачу и перерисовывает форму параметров под новый провайдер.</p>
+  {% endif %}
+
+  {% if job.pipeline == 'midjourney_video' %}
+  <h2>Видео (MidJourney)</h2>
+  <div class="form-grid">
+    <label class="field"><span>Соотношение сторон кадра</span>
+      <select id="jf-video-aspect">
+        {% for c in ['1:1','16:9','9:16','4:3','3:4'] %}
+        <option {% if job.video.aspect_ratio == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="field"><span>Видео-промпт (движение)</span>
+      <input type="text" id="jf-video-prompt" value="{{ job.video.prompt }}">
+    </label>
+    <label class="field"><span>Движение</span>
+      <select id="jf-video-motion">
+        <option {% if job.video.motion == 'low' %}selected{% endif %}>low</option>
+        <option {% if job.video.motion == 'high' %}selected{% endif %}>high</option>
+      </select>
+    </label>
+    <label class="field"><span>Качество</span>
+      <select id="jf-video-task">
+        <option {% if job.video.task_type == 'image-to-video' %}selected{% endif %}>image-to-video</option>
+        <option {% if job.video.task_type == 'image-to-video-hd' %}selected{% endif %}>image-to-video-hd</option>
+      </select>
+    </label>
+  </div>
+  {% endif %}
+
+  {% if job.pipeline == 'best_image_video' %}
+  <h2>Best-of по реакциям</h2>
+  <div class="form-grid">
+    <label class="field"><span>Период выборки, дней</span>
+      <input type="number" id="jf-bestof-days" min="1" max="90" value="{{ job.bestof.period_days }}">
+    </label>
+    <label class="field"><span>Видео-промпт (движение)</span>
+      <input type="text" id="jf-bestof-prompt" value="{{ job.bestof.video_prompt }}">
+    </label>
+    <label class="field"><span>Движение</span>
+      <select id="jf-bestof-motion">
+        <option {% if job.bestof.motion == 'low' %}selected{% endif %}>low</option>
+        <option {% if job.bestof.motion == 'high' %}selected{% endif %}>high</option>
+      </select>
+    </label>
+    <label class="field"><span>Качество</span>
+      <select id="jf-bestof-task">
+        <option {% if job.bestof.task_type == 'image-to-video' %}selected{% endif %}>image-to-video</option>
+        <option {% if job.bestof.task_type == 'image-to-video-hd' %}selected{% endif %}>image-to-video-hd</option>
+      </select>
+    </label>
+  </div>
+  <p class="hint">Берёт самое популярное фото группы (сумма реакций) за период и превращает его в видео. Требует Telethon-сессию (best_image_session.session).</p>
+  {% endif %}
 
   <h2>Оформление и публикация</h2>
   <div class="form-grid">
+    {% if job.pipeline != 'best_image_video' %}
     <label class="field"><span>Водяной знак (буква)</span>
       <span class="inline">
         <input type="checkbox" id="jf-wm-enabled" {% if job.watermark.enabled %}checked{% endif %}>
         <input type="text" id="jf-wm-letter" maxlength="4" value="{{ job.watermark.letter }}">
       </span>
     </label>
+    {% endif %}
     <label class="field"><span>Ретраи Telegram</span>
       <input type="number" id="jf-retries" min="0" max="10" value="{{ job.publish.retries }}">
     </label>
@@ -113,5 +169,4 @@
     <button class="btn btn-ghost" id="jf-save">💾 Сохранить и на дашборд</button>
   </p>
 </div>
-{% endif %}
 {% endblock %}

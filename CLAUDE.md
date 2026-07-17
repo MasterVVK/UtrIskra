@@ -31,12 +31,6 @@ API поддерживает endpoint `/v1/midjourney/image/upload` для пр�
 pip install -r requirements.txt
 ```
 
-### Запуск планировщика
-```bash
-python main.py
-```
-Запускает основной планировщик с автоматической публикацией историй по расписанию (каждый день в разное время для разных генераторов). **Устарело:** заменён веб-приложением (см. ниже); не запускать параллельно с ним — публикации задублируются.
-
 ### Веб-приложение (панель управления)
 ```bash
 python run_web.py                      # вручную, порт 8090 (WEB_HOST/WEB_PORT в .env)
@@ -47,9 +41,9 @@ journalctl -u utriskra-web -f          # логи сервиса
 
 Генерация построена на модульной архитектуре (см. `docs/architecture-providers.md`):
 - **задачи** — `storage/webapp/jobs.json`, исполняются пайплайном `core/pipeline.py` (промпт из БД с плейсхолдерами → цепочка LLM → image-провайдер → водяной знак → SQLite → Telegram); CLI: `python -m core.run <ключ>`;
-- **промпты** — в SQLite, таблица `job_prompts` (`core/prompts.py`): привязаны к задаче, каждое изменение — новая версия; редактируются на странице настроек задачи. Файлы `runners/prompts/*.txt` — исходник разовой миграции и рабочие промпты 3 legacy-раннеров;
-- **провайдеры** — `providers/llm/*` (gemini, openai-совместимые: Ollama/vLLM/Qwen2API) и `providers/image/*` (`local_task` покрывает все self-hosted task-API одним классом), инстансы в `storage/webapp/providers.json`;
-- `runners/*` — legacy: 12 типовых заменены пайплайном, 3 спец-раннера (midjourney, midjourney_video, best_image_video) вызываются как `pipeline: "legacy"`.
+- **промпты** — в SQLite, таблица `job_prompts` (`core/prompts.py`): привязаны к задаче, каждое изменение — новая версия; редактируются на странице настроек задачи;
+- **провайдеры** — `providers/llm/*` (gemini, openai-совместимые: Ollama/vLLM/Qwen2API) и `providers/image/*` (`local_task` покрывает все self-hosted task-API одним классом; `midjourney` — imagine + кроп сетки), инстансы в `storage/webapp/providers.json`;
+- **видео-пайплайны** — `midjourney_video` (кадр → публикация → image-to-video) и `best_image_video` (популярное фото группы по реакциям через Telethon → CDN → видео).
 
 Подробности: `docs/webapp.md`.
 
@@ -58,65 +52,34 @@ journalctl -u utriskra-web -f          # логи сервиса
 python utils/database.py
 ```
 
-### Запуск отдельных генераторов (для тестирования)
+### Запуск отдельной задачи из терминала
 ```bash
-python runners/daily_runner.py          # Stability AI (7:00)
-python runners/kandinsky_runner.py          # Kandinsky (8:00)
-python runners/midjourney_runner.py         # MidJourney (9:00)
-python runners/dalle_runner.py              # DALL-E (10:00)
-python runners/flux_runner.py               # Flux (11:00)
-python runners/yandex_runner.py             # Yandex Art (12:00)
-python runners/gemini_image_runner.py       # Gemini Image (13:00)
-python runners/midjourney_video_runner.py   # MidJourney Video (14:00)
-python runners/best_image_video_runner.py   # Best Image Animation (15:00) - требует Telethon auth
-```
-
-### Тестирование доступности сервисов
-```bash
-python services/test_availability.py
+python -m core.run <ключ задачи>    # ключи: storage/webapp/jobs.json (например hidream, qwen, midjourney)
 ```
 
 ## Архитектура
 
-### Основной поток работы
-1. **Планировщик** (`runners/scheduler.py`) запускает раннеры по расписанию через APScheduler
-2. **Раннер** (например `runners/daily_runner.py`) генерирует промпт через Gemini Pro
-3. **Сервис генерации** (например `services/stability_service.py`) создает изображение
-4. Изображение сохраняется в структуру `storage/images/{year}/{month}/{filename}.png`
+### Основной поток работы (пайплайн `image`)
+1. **APScheduler внутри веб-панели** запускает задачу по расписанию (или вручную из UI)
+2. **Промпт задачи** читается из SQLite (`job_prompts`), плейсхолдеры рендерятся, текст генерируется цепочкой LLM-провайдеров (fallback настраивается)
+3. **Image-провайдер** создаёт изображение (bytes) через соответствующий API
+4. Изображение сохраняется в `storage/images/{year}/{month}/{filename}.png`, накладывается водяной знак
 5. Метаданные записываются в SQLite (`storage/database/daily_images.db`)
-6. Изображение отправляется в Telegram через Aiogram
+6. Публикация в Telegram через `core/publisher.py` (ретраи, debug-режим, caption)
 
 ### Структура модулей
 
 **config.py**: Централизованная конфигурация через .env переменные. Все API ключи и пути загружаются здесь.
 
-**services/**: Сервисы для работы с AI API
-- `gemini_service.py` - генерация текстовых промптов с ротацией API ключей и обработкой 503/429 ошибок
-- `stability_service.py` - Stability AI через REST API
-- `flux_service.py`, `dalle_service.py`, `midjourney_service.py`, `kandinsky_service.py`, `yandex_service.py` - другие генераторы изображений
-- `gemini_image_service.py` - генерация изображений через Gemini Image API
+**core/**: пайплайны (`pipeline.py`), задачи (`jobs.py`), промпты (`prompts.py`), провайдеры-конфиги (`providers_store.py`), публикация (`publisher.py`), runtime-настройки (`app_settings.py`), CLI (`run.py`)
 
-**runners/**: Раннеры и планировщик
-- Каждый раннер (`*_runner.py`) - независимый модуль генерации и публикации
-- `scheduler.py` - настройка cron-задач для автоматической публикации
+**providers/**: адаптеры LLM (`llm/`: gemini с ротацией ключей и прокси, openai-совместимые) и генераторов изображений (`image/`: local_task, stability, dalle, flux, kandinsky, yandex, gemini_image, qwen_chat, midjourney)
 
-**utils/**:
-- `database.py` - работа с SQLite (схема: id, date, system_prompt, user_prompt, generated_prompt, image_path)
-- `logger.py` - настройка логирования
-- `image_utils.py` - обработка изображений
-- `prompt_utils.py` - утилиты для работы с промптами
+**services/**: низкоуровневые обёртки API, используемые провайдерами: `midjourney_service.py` (Kolersky: imagine/video/upload на CDN), `kandinsky_service.py`, `yandex_service.py`, `qwen_chat_service.py`
 
-### Ключевые особенности реализации
+**webapp/**: FastAPI-панель (маршруты, планировщик, менеджер запусков с логами, реестр задач, шаблоны, статика)
 
-**Ротация API ключей**: `gemini_service.py` реализует автоматическое переключение между GEMINI_API_KEYS при ошибках 429 (quota exceeded) или 400 (invalid key). При 503 делает 3 попытки с задержкой 50 секунд.
-
-**Прокси**: Все запросы к Gemini идут через SOCKS5 прокси (`PROXY_URL`), настроенный через `httpx-socks`.
-
-**Структура хранения**: Изображения организованы по годам и месяцам для удобной навигации и архивирования.
-
-**Telegram интеграция**: Используется Aiogram для отправки изображений. TARGET_CHAT_ID определяет целевой чат/канал. `best_image_video_runner.py` также использует Telethon для чтения сообщений и реакций (требуется пользовательская авторизация при первом запуске).
-
-**Динамические промпты**: В `daily_runner.py:67-87` реализована система выбора темы на основе дня месяца (день % 10), что обеспечивает разнообразие контента.
+**utils/**: `database.py` (SQLite: daily_images), `image_utils.py` (водяной знак), `logger.py`
 
 ## Конфигурация (.env)
 
@@ -124,7 +87,7 @@ python services/test_availability.py
 - `GEMINI_API_KEYS` - список ключей через запятую для ротации
 - `PROXY_URL` - SOCKS5 прокси для доступа к Gemini API
 - `TELETHON_API_ID`, `TELETHON_API_HASH` - Telegram API credentials для Telethon (получить на https://my.telegram.org/auth)
-- `TELETHON_PEER` - ID группы для анализа реакций (используется в `best_image_video_runner.py`)
+- `TELETHON_PEER` - ID группы для анализа реакций (задача best_image_video, `core/pipeline.py`)
 - `TELEGRAM_TOKEN` - токен Telegram бота
 - `TARGET_CHAT_ID` - ID чата/канала для публикации
 - `DEBUG_TELEGRAM_TOKEN`, `DEBUG_TARGET_CHAT_ID` - (опционально) отладочный бот и чат для debug-режима публикаций (тумблер на дашборде панели или флаг у задачи)
@@ -146,11 +109,4 @@ SQLite схема (`daily_images`):
 
 ## Расписание публикаций
 
-Определено в `runners/scheduler.py:22-28`:
-- 07:00 - Stability AI
-- 08:00 - Kandinsky
-- 09:00 - MidJourney
-- 10:00 - DALL-E
-- 11:00 - Flux
-- 12:00 - Yandex Art
-- 13:00 - Gemini Image
+Управляется из веб-панели (дашборд: тумблер + время у каждой задачи), хранится в `storage/webapp/schedule.json`. По умолчанию всё выключено.

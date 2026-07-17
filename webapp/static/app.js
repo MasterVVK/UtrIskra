@@ -252,10 +252,6 @@ async function refreshDrawer() {
 
   const dbg = $("#drawer-debug");
   if (document.activeElement !== dbg) dbg.checked = d.debug;
-  dbg.disabled = d.pipeline === "legacy";
-  $("#drawer-debug-wrap").title = d.pipeline === "legacy"
-    ? "Legacy-раннер публикует напрямую — debug не действует"
-    : "Публиковать эту задачу в отладочный чат";
 
   $("#drawer-settings").href = `/jobs/${d.key}`;
   $("#drawer-full-log").href = `/logs?job=${d.key}`;
@@ -434,37 +430,62 @@ function bindJobSettingsPage() {
   if (!form) return;
   const key = form.dataset.key;
 
-  $("#jf-image-provider").addEventListener("change", async e => {
+  const providerSelect = $("#jf-image-provider");
+  if (providerSelect) providerSelect.addEventListener("change", async e => {
     try {
       await postJSON(`/api/jobs/${key}`, { image: { provider: e.target.value, params: {} } });
       location.reload(); // форма параметров перерисуется под нового провайдера
     } catch (err) { toast("Ошибка смены провайдера: " + err.message, true); }
   });
 
+  // секции собираются по наличию на странице — состав зависит от типа пайплайна
   function collectJobForm() {
-    const params = {};
-    $$(".jf-param").forEach(el => {
-      params[el.dataset.key] = el.dataset.kind === "bool" ? el.checked : el.value;
-    });
-    return {
-      prompt: {
-        system: $("#jf-prompt-system").value,
-        user: $("#jf-prompt-user").value,
-      },
-      llm: {
-        provider: $("#jf-llm-provider").value || null,
-        temperature: parseFloat($("#jf-temperature").value),
-        max_theme: parseInt($("#jf-max-theme").value, 10),
-        max_category: parseInt($("#jf-max-category").value, 10),
-      },
-      image: { provider: $("#jf-image-provider").value, params },
-      watermark: { enabled: $("#jf-wm-enabled").checked, letter: $("#jf-wm-letter").value },
+    const body = {
       publish: {
         retries: parseInt($("#jf-retries").value, 10),
         chat_id: $("#jf-chat-id").value || null,
         debug: $("#jf-debug").checked,
       },
     };
+    if ($("#jf-wm-enabled")) {
+      body.watermark = { enabled: $("#jf-wm-enabled").checked, letter: $("#jf-wm-letter").value };
+    }
+    if ($("#jf-prompt-user")) {
+      body.prompt = {
+        system: $("#jf-prompt-system").value,
+        user: $("#jf-prompt-user").value,
+      };
+      body.llm = {
+        provider: $("#jf-llm-provider").value || null,
+        temperature: parseFloat($("#jf-temperature").value),
+        max_theme: parseInt($("#jf-max-theme").value, 10),
+        max_category: parseInt($("#jf-max-category").value, 10),
+      };
+    }
+    if ($("#jf-image-provider")) {
+      const params = {};
+      $$(".jf-param").forEach(el => {
+        params[el.dataset.key] = el.dataset.kind === "bool" ? el.checked : el.value;
+      });
+      body.image = { provider: $("#jf-image-provider").value, params };
+    }
+    if ($("#jf-video-prompt")) {
+      body.video = {
+        aspect_ratio: $("#jf-video-aspect").value,
+        prompt: $("#jf-video-prompt").value,
+        motion: $("#jf-video-motion").value,
+        task_type: $("#jf-video-task").value,
+      };
+    }
+    if ($("#jf-bestof-days")) {
+      body.bestof = {
+        period_days: parseInt($("#jf-bestof-days").value, 10),
+        video_prompt: $("#jf-bestof-prompt").value,
+        motion: $("#jf-bestof-motion").value,
+        task_type: $("#jf-bestof-task").value,
+      };
+    }
+    return body;
   }
 
   // «закончил»: сохранить и вернуться на дашборд

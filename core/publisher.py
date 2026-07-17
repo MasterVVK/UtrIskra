@@ -36,7 +36,8 @@ def _resolve_destination(chat_id, job_debug):
 
 
 async def publish_media(path: str, *, media: str = "image",
-                        chat_id=None, retries: int = 0, debug: bool = False):
+                        chat_id=None, retries: int = 0, debug: bool = False,
+                        caption: str = None):
     """Отправляет фото/видео; retries — число повторов после первой попытки."""
     token, target, is_debug = _resolve_destination(chat_id, debug)
     if is_debug:
@@ -48,9 +49,11 @@ async def publish_media(path: str, *, media: str = "image",
         for attempt in range(1, attempts + 1):
             try:
                 if media == "video":
-                    await bot.send_video(chat_id=target, video=FSInputFile(path))
+                    await bot.send_video(chat_id=target, video=FSInputFile(path),
+                                         caption=caption)
                 else:
-                    await bot.send_photo(chat_id=target, photo=FSInputFile(path))
+                    await bot.send_photo(chat_id=target, photo=FSInputFile(path),
+                                         caption=caption)
                 logger.info("Опубликовано в Telegram (%s%s): %s",
                             target, " · DEBUG" if is_debug else "", path)
                 return

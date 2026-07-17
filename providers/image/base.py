@@ -24,13 +24,20 @@ class ImageProvider:
         return self.config.get("params") or self.PARAMS
 
     def apply_defaults(self, params: dict) -> dict:
-        """Дефолты схемы + переданные значения; неизвестные ключи отбрасываются."""
+        """Дефолты схемы + переданные значения; неизвестные ключи отбрасываются,
+        значение kind="choice" вне списка choices заменяется дефолтом."""
         result = {}
         for spec in self.param_schema:
             value = params.get(spec["key"], spec.get("default"))
             if value is None:
                 continue
-            result[spec["key"]] = _coerce(spec.get("kind", "str"), value)
+            value = _coerce(spec.get("kind", "str"), value)
+            choices = spec.get("choices")
+            if spec.get("kind") == "choice" and choices and value not in choices:
+                value = spec.get("default")
+                if value is None:
+                    continue
+            result[spec["key"]] = value
         return result
 
     async def generate(self, prompt: str, params: dict) -> bytes:
@@ -80,10 +87,11 @@ def build_image_provider(name: str, config: dict) -> ImageProvider:
     from providers.image.yandex import YandexProvider
     from providers.image.gemini_image import GeminiImageProvider
     from providers.image.qwen_chat import QwenChatProvider
+    from providers.image.midjourney import MidjourneyProvider
 
     types = {p.type: p for p in (LocalTaskProvider, StabilityProvider, DalleProvider,
                                  FluxProvider, KandinskyProvider, YandexProvider,
-                                 GeminiImageProvider, QwenChatProvider)}
+                                 GeminiImageProvider, QwenChatProvider, MidjourneyProvider)}
     provider_type = config.get("type")
     if provider_type not in types:
         raise ValueError(f"Неизвестный тип image-провайдера «{provider_type}» (инстанс {name})")
