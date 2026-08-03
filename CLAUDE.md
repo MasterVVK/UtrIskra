@@ -6,6 +6,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **UtrIskra** - система автоматической генерации и публикации AI-изображений в Telegram через различные генераторы (Stability AI, Flux, DALL-E, MidJourney, Kandinsky, Yandex Art, Gemini Image). Использует Gemini Pro для генерации промптов и APScheduler для планирования публикаций.
 
+## images-api — единый шлюз self-hosted моделей (br-01)
+
+Четыре отдельных FastAPI-сервиса на br-01 (qwen 8000, zimage 8001, ernie 8002,
+hidream 8003) заменены одним шлюзом `images-api` — `http://192.168.0.60:8010`
+(проект `/home/user/images-api` на br-01). Он держит очередь, историю задач,
+арбитраж VRAM и два GPU-узла: br-01 и nv-02.
+
+Со стороны UtrIskra это один провайдер `providers/image/images_api.py`
+(тип `images_api`) и четыре инстанса в `providers.json` с прежними именами —
+`qwen`, `zimage`, `ernie`, `hidream`, чтобы задачи и расписание не переезжали.
+Общие `base_url` и `api_key_env`, у каждого свой `model` и своя схема `params`.
+
+Что изменилось в контракте по сравнению со старыми сервисами:
+- обязателен заголовок `X-API-Key` (`IMAGES_API_KEY` в .env, ключ не админский);
+- модели названы плоско: `qwen-image`, `z-image-base`, `z-image-turbo`,
+  `ernie-image`, `ernie-image-turbo`, `hidream-o1` (прежние `base`/`sft`/`turbo`
+  шлюз отвергает с 422 — они значили разное в разных сервисах);
+- CFG у всех называется `guidance_scale` (`cfg_scale` принимается как алиас);
+- ожидание — `GET /api/v1/tasks/{id}/wait`, поллинг больше не нужен;
+- `image_url` относительный и подписанный (`?sig=`), провайдер дополняет его base_url;
+- здоровье — `/healthz` и `/readyz` (не `/api/v1/health`);
+- `shift` и `scheduler` принимает только `hidream-o1`, `negative_prompt` он же
+  не принимает вовсе;
+- появился статус `waiting_vram`: карта занята соседями (ollama, RAG, TTS),
+  шлюз ждёт до 10 минут и отказывает с `error_code=vram_unavailable`;
+- `use_pe` — улучшение промпта внешней LLM на стороне шлюза, VRAM не занимает.
+
+Если UtrIskra бросает задачу (таймаут, отмена), провайдер шлёт
+`DELETE /api/v1/tasks/{id}`: иначе задача продолжала бы эксклюзивно держать GPU.
+
+Актуальный каталог моделей и пресетов — `GET /api/v1/models` и
+`GET /api/v1/resolutions?model=`; описание шлюза — `README.ru.md` в его проекте.
+
 ## Midjourney API - Прямая загрузка изображений
 
 API поддерживает endpoint `/v1/midjourney/image/upload` для прямой загрузки изображений через base64 без использования внешних сервисов.
@@ -42,7 +75,7 @@ journalctl -u utriskra-web -f          # логи сервиса
 Генерация построена на модульной архитектуре (см. `docs/architecture-providers.md`):
 - **задачи** — `storage/webapp/jobs.json`, исполняются пайплайном `core/pipeline.py` (промпт из БД с плейсхолдерами → цепочка LLM → image-провайдер → водяной знак → SQLite → Telegram); CLI: `python -m core.run <ключ>`;
 - **промпты** — в SQLite, таблица `job_prompts` (`core/prompts.py`): привязаны к задаче, каждое изменение — новая версия; редактируются на странице настроек задачи;
-- **провайдеры** — `providers/llm/*` (gemini, openai-совместимые: Ollama/vLLM/Qwen2API) и `providers/image/*` (`local_task` покрывает все self-hosted task-API одним классом; `midjourney` — imagine + кроп сетки), инстансы в `storage/webapp/providers.json`;
+- **провайдеры** — `providers/llm/*` (gemini, openai-совместимые: Ollama/vLLM/Qwen2API) и `providers/image/*` (`images_api` покрывает все self-hosted модели через единый шлюз br-01; `midjourney` — imagine + кроп сетки), инстансы в `storage/webapp/providers.json`;
 - **видео-пайплайны** — `midjourney_video` (кадр → публикация → image-to-video) и `best_image_video` (популярное фото группы по реакциям через Telethon → CDN → видео).
 
 Подробности: `docs/webapp.md`.
@@ -73,7 +106,7 @@ python -m core.run <ключ задачи>    # ключи: storage/webapp/jobs.
 
 **core/**: пайплайны (`pipeline.py`), задачи (`jobs.py`), промпты (`prompts.py`), провайдеры-конфиги (`providers_store.py`), публикация (`publisher.py`), runtime-настройки (`app_settings.py`), CLI (`run.py`)
 
-**providers/**: адаптеры LLM (`llm/`: gemini с ротацией ключей и прокси, openai-совместимые) и генераторов изображений (`image/`: local_task, stability, dalle, flux, kandinsky, yandex, gemini_image, qwen_chat, midjourney)
+**providers/**: адаптеры LLM (`llm/`: gemini с ротацией ключей и прокси, openai-совместимые) и генераторов изображений (`image/`: images_api, stability, dalle, flux, kandinsky, yandex, gemini_image, qwen_chat, midjourney)
 
 **services/**: низкоуровневые обёртки API, используемые провайдерами: `midjourney_service.py` (Kolersky: imagine/video/upload на CDN), `kandinsky_service.py`, `yandex_service.py`, `qwen_chat_service.py`
 
@@ -93,6 +126,8 @@ python -m core.run <ключ задачи>    # ключи: storage/webapp/jobs.
 - `DEBUG_TELEGRAM_TOKEN`, `DEBUG_TARGET_CHAT_ID` - (опционально) отладочный бот и чат для debug-режима публикаций (тумблер на дашборде панели или флаг у задачи)
 - `BASE_STORAGE_PATH` - корневая директория для хранения (обычно "storage")
 - `FONTS_PATH` - путь к шрифтам для водяных знаков на изображениях
+
+- `IMAGES_API_URL`, `IMAGES_API_KEY` - адрес и ключ шлюза images-api на br-01 (задачи qwen, zimage, ernie, hidream)
 
 API ключи генераторов (по необходимости):
 - `STABILITY_API_KEY`, `BFL_API_KEY`, `OPENAI_API_KEY`, `MIDJOURNEY_API_TOKEN`, `KANDINSKY_API_KEY`, `KANDINSKY_SECRET_KEY`, `OAUTH_TOKEN` (Yandex), `FOLDER_ID` (Yandex)

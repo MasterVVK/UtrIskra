@@ -13,7 +13,7 @@ import httpx
 
 class ImageProvider:
     type = "base"
-    PARAMS = []  # схема параметров типа; local_task берёт её из конфига инстанса
+    PARAMS = []  # схема параметров типа; images_api берёт её из конфига инстанса
 
     def __init__(self, name: str, config: dict):
         self.name = name
@@ -79,7 +79,7 @@ async def download_bytes(url: str, timeout: float = 180, proxy: bool = False) ->
 
 def build_image_provider(name: str, config: dict) -> ImageProvider:
     """Фабрика по полю config["type"]."""
-    from providers.image.local_task import LocalTaskProvider
+    from providers.image.images_api import ImagesApiProvider
     from providers.image.stability import StabilityProvider
     from providers.image.dalle import DalleProvider
     from providers.image.flux import FluxProvider
@@ -89,7 +89,7 @@ def build_image_provider(name: str, config: dict) -> ImageProvider:
     from providers.image.qwen_chat import QwenChatProvider
     from providers.image.midjourney import MidjourneyProvider
 
-    types = {p.type: p for p in (LocalTaskProvider, StabilityProvider, DalleProvider,
+    types = {p.type: p for p in (ImagesApiProvider, StabilityProvider, DalleProvider,
                                  FluxProvider, KandinskyProvider, YandexProvider,
                                  GeminiImageProvider, QwenChatProvider, MidjourneyProvider)}
     provider_type = config.get("type")

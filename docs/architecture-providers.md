@@ -87,7 +87,7 @@ class ImageProvider:
 
 | type | Покрывает | Примечание |
 |---|---|---|
-| `local_task` | **qwen, zimage, ernie, hidream — одним классом** | у всех идентичный API (`POST /api/v1/generate` → поллинг `GET /api/v1/tasks/{id}` + `/health`); отличия (cfg_scale vs guidance_scale, use_pe, model) описываются `param_schema` в конфиге инстанса. **Новый self-hosted генератор = запись в JSON, ноль кода** |
+| `images_api` | **qwen, zimage, ernie, hidream — одним классом** | единый шлюз images-api на br-01 (`POST /api/v1/generate` → `GET /api/v1/tasks/{id}/wait`), обязателен `X-API-Key`, модель — плоский id реестра шлюза; отличия моделей (шаги, CFG, use_pe, shift/scheduler) описываются `param_schema` в конфиге инстанса. **Новая модель шлюза = запись в JSON, ноль кода** |
 | `stability` | Stability Ultra | aspect_ratio, negative_prompt, output_format, seed — в параметры |
 | `dalle` | OpenAI Images | model, size, quality |
 | `flux` | BFL | width/height, steps |
@@ -102,16 +102,18 @@ class ImageProvider:
 ```json
 {
   "image": {
-    "hidream": {"type": "local_task", "base_url": "http://192.168.0.60:8003",
+    "hidream": {"type": "images_api", "base_url": "http://192.168.0.60:8010",
+                "api_key_env": "IMAGES_API_KEY", "model": "hidream-o1",
                 "params": [
                   {"key": "aspect_ratio", "kind": "choice", "choices": ["16:9","1:1","9:16"], "default": "16:9"},
                   {"key": "use_pe", "kind": "bool", "default": true}
                 ]},
-    "zimage":  {"type": "local_task", "base_url": "http://192.168.0.60:8001",
+    "zimage":  {"type": "images_api", "base_url": "http://192.168.0.60:8010",
+                "api_key_env": "IMAGES_API_KEY", "model": "z-image-base",
                 "params": [
-                  {"key": "model", "kind": "str", "default": "base"},
+                  {"key": "model", "kind": "choice", "choices": ["z-image-base","z-image-turbo"], "default": "z-image-base"},
                   {"key": "num_inference_steps", "kind": "int", "default": 30, "min": 1, "max": 100},
-                  {"key": "guidance_scale", "kind": "float", "default": 5.0, "min": 1, "max": 20}
+                  {"key": "guidance_scale", "kind": "float", "default": 5.0, "min": 0, "max": 20}
                 ]},
     "stability": {"type": "stability"},
     "dalle":     {"type": "dalle"}
@@ -165,7 +167,7 @@ class ImageProvider:
 ```
 providers/
 ├── llm/base.py, gemini.py, openai_compat.py
-├── image/base.py, local_task.py, stability.py, dalle.py, flux.py,
+├── image/base.py, images_api.py, stability.py, dalle.py, flux.py,
 │         kandinsky.py, yandex.py, gemini_image.py, qwen_chat.py, midjourney.py
 core/
 ├── pipeline.py        # 4 типа пайплайна

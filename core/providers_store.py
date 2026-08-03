@@ -8,8 +8,8 @@ import logging
 import os
 import threading
 
-from config import (BASE_STORAGE_PATH, QWEN_API_URL, ZIMAGE_API_URL, ERNIE_API_URL,
-                    HIDREAM_API_URL, QWEN_CHAT_API_URL, FALLBACK_LLM_URL, FALLBACK_LLM_MODEL)
+from config import (BASE_STORAGE_PATH, IMAGES_API_URL, QWEN_CHAT_API_URL,
+                    FALLBACK_LLM_URL, FALLBACK_LLM_MODEL)
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +18,36 @@ _lock = threading.Lock()
 _cache = {"mtime": None, "data": None}
 
 
-def _aspect(default="16:9"):
+def _aspect(choices=("16:9", "1:1", "4:3", "3:4", "9:16"), default="16:9"):
+    # Набор пресетов у каждой модели свой — сверяется с GET /api/v1/resolutions
+    # шлюза: значение вне списка он отвергает, а не подгоняет.
     return {"key": "aspect_ratio", "label": "Соотношение сторон", "kind": "choice",
-            "choices": ["1:1", "16:9", "9:16", "4:3", "3:4"], "default": default}
+            "choices": list(choices), "default": default}
+
+
+def _negative():
+    return {"key": "negative_prompt", "label": "Негативный промпт", "kind": "str", "default": ""}
+
+
+def _steps(default, maximum=100):
+    return {"key": "num_inference_steps", "label": "Шаги", "kind": "int",
+            "default": default, "min": 1, "max": maximum}
+
+
+def _guidance(default, label="CFG"):
+    return {"key": "guidance_scale", "label": label, "kind": "float",
+            "default": default, "min": 0, "max": 20}
+
+
+def _use_pe(default):
+    return {"key": "use_pe", "label": "Улучшение промпта (внешняя LLM шлюза)",
+            "kind": "bool", "default": default}
+
+
+def _images_api(model, params):
+    """Инстанс единого шлюза images-api: общий адрес и ключ, своя модель."""
+    return {"type": "images_api", "base_url": IMAGES_API_URL,
+            "api_key_env": "IMAGES_API_KEY", "model": model, "params": params}
 
 
 def _defaults():
@@ -42,37 +69,46 @@ def _defaults():
             "gemini_image": {"type": "gemini_image"},
             "midjourney": {"type": "midjourney"},
             "qwen_chat": {"type": "qwen_chat", "base_url": QWEN_CHAT_API_URL},
-            "qwen": {"type": "local_task", "base_url": QWEN_API_URL, "params": [
+            # Четыре инстанса одного шлюза: имена сохранены с времён отдельных
+            # сервисов, чтобы задачи и их расписание не переезжали.
+            "qwen": _images_api("qwen-image", [
                 _aspect(),
-                {"key": "negative_prompt", "label": "Негативный промпт", "kind": "str", "default": ""},
-                {"key": "num_inference_steps", "label": "Шаги", "kind": "int",
-                 "default": 50, "min": 1, "max": 100},
-                {"key": "cfg_scale", "label": "CFG", "kind": "float",
-                 "default": 4.0, "min": 1, "max": 20},
-            ]},
-            "zimage": {"type": "local_task", "base_url": ZIMAGE_API_URL, "params": [
-                {"key": "model", "label": "Модель", "kind": "str", "default": "base"},
+                _negative(),
+                _steps(50),
+                _guidance(4.0, "CFG (true_cfg_scale)"),
+                _use_pe(False),
+            ]),
+            "zimage": _images_api("z-image-base", [
+                {"key": "model", "label": "Модель (turbo: 9 шагов, CFG 0)", "kind": "choice",
+                 "choices": ["z-image-base", "z-image-turbo"], "default": "z-image-base"},
                 _aspect(),
-                {"key": "negative_prompt", "label": "Негативный промпт", "kind": "str", "default": ""},
-                {"key": "num_inference_steps", "label": "Шаги", "kind": "int",
-                 "default": 30, "min": 1, "max": 100},
-                {"key": "guidance_scale", "label": "Guidance", "kind": "float",
-                 "default": 5.0, "min": 1, "max": 20},
-            ]},
-            "ernie": {"type": "local_task", "base_url": ERNIE_API_URL, "params": [
-                {"key": "model", "label": "Модель", "kind": "str", "default": "sft"},
-                _aspect(),
-                {"key": "negative_prompt", "label": "Негативный промпт", "kind": "str", "default": ""},
-                {"key": "num_inference_steps", "label": "Шаги", "kind": "int",
-                 "default": 100, "min": 1, "max": 200},
-                {"key": "guidance_scale", "label": "Guidance", "kind": "float",
-                 "default": 4.0, "min": 1, "max": 20},
-                {"key": "use_pe", "label": "Prompt enhancement", "kind": "bool", "default": True},
-            ]},
-            "hidream": {"type": "local_task", "base_url": HIDREAM_API_URL, "params": [
-                _aspect(),
-                {"key": "use_pe", "label": "Prompt enhancement", "kind": "bool", "default": True},
-            ]},
+                _negative(),
+                _steps(30),
+                _guidance(5.0),
+                _use_pe(False),
+            ]),
+            "ernie": _images_api("ernie-image", [
+                {"key": "model", "label": "Модель (turbo: 8 шагов, CFG 1)", "kind": "choice",
+                 "choices": ["ernie-image", "ernie-image-turbo"], "default": "ernie-image"},
+                _aspect(("16:9", "1:1", "3:2", "2:3", "4:3", "3:4", "9:16")),
+                _negative(),
+                _steps(100),
+                _guidance(4.0),
+                _use_pe(True),
+            ]),
+            # negative_prompt у hidream нет намеренно: модель его не принимает,
+            # непустое значение шлюз отвергает с 422.
+            "hidream": _images_api("hidream-o1", [
+                _aspect(("16:9", "1:1", "21:9", "9:21", "3:2", "2:3",
+                         "4:3", "3:4", "9:7", "7:9", "9:16")),
+                _steps(50),
+                _guidance(5.0),
+                {"key": "shift", "label": "Shift", "kind": "float",
+                 "default": 3.0, "min": 0, "max": 20},
+                {"key": "scheduler", "label": "Планировщик", "kind": "choice",
+                 "choices": ["default", "flow_match", "flash"], "default": "default"},
+                _use_pe(True),
+            ]),
         },
     }
 

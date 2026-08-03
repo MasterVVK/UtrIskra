@@ -95,8 +95,8 @@ def _default_jobs():
         },
         "zimage": _image_job(
             "Z-Image", "zimage_story", "zimage_runner.txt", "Z", "zimage",
-            {"model": "base", "aspect_ratio": "16:9", "num_inference_steps": 30,
-             "guidance_scale": 5.0}, 16, 0, retries=3),
+            {"model": "z-image-base", "aspect_ratio": "16:9", "num_inference_steps": 30,
+             "guidance_scale": 5.0, "use_pe": False}, 16, 0, retries=3),
         "stability_prompts": _image_job(
             "Stability AI (промпт-файл)", "stability_story", "stability_runner.txt",
             "S", "stability",
@@ -104,19 +104,21 @@ def _default_jobs():
              "output_format": "png"}, 17, 0),
         "qwen": _image_job(
             "Qwen Image", "qwen_story", "qwen_runner.txt", "Q", "qwen",
-            {"aspect_ratio": "16:9", "num_inference_steps": 50, "cfg_scale": 4.0},
-            17, 30, retries=3),
+            {"aspect_ratio": "16:9", "num_inference_steps": 50, "guidance_scale": 4.0,
+             "use_pe": False}, 17, 30, retries=3),
         "qwen_chat": _image_job(
             "Qwen Chat", "qwen_chat_story", "qwen_chat_runner.txt", "QC", "qwen_chat",
             {"model": "qwen3.7-plus-image", "aspect_ratio": "16:9",
              "temperature": 0.7, "top_p": 0.95}, 18, 0, retries=3),
         "ernie": _image_job(
             "ERNIE", "ernie_story", "ernie_runner.txt", "E", "ernie",
-            {"model": "sft", "aspect_ratio": "16:9", "num_inference_steps": 100,
+            {"model": "ernie-image", "aspect_ratio": "16:9", "num_inference_steps": 100,
              "guidance_scale": 4.0, "use_pe": True}, 18, 30, max_theme=50, retries=3),
         "hidream": _image_job(
             "HiDream", "hidream_story", "hidream_runner.txt", "H", "hidream",
-            {"aspect_ratio": "16:9", "use_pe": True}, 19, 0, max_theme=50, retries=3),
+            {"aspect_ratio": "16:9", "num_inference_steps": 50, "guidance_scale": 5.0,
+             "shift": 3.0, "scheduler": "default", "use_pe": True},
+            19, 0, max_theme=50, retries=3),
     }
 
 

@@ -128,7 +128,7 @@ sudo systemctl daemon-reload && sudo systemctl restart utriskra-web
 ```
 providers/
 ├── llm/                 # base, gemini (ротация ключей), openai_compat (Ollama/vLLM/Qwen2API/...)
-└── image/               # base, local_task (qwen/zimage/ernie/hidream одним классом),
+└── image/               # base, images_api (qwen/zimage/ernie/hidream — единый шлюз br-01),
                          # stability, dalle, flux, kandinsky, yandex, gemini_image, qwen_chat
 core/
 ├── pipeline.py          # пайплайны: image / midjourney_video / best_image_video

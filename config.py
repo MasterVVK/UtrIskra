@@ -45,17 +45,11 @@ KANDINSKY_SECRET_KEY = os.getenv("KANDINSKY_SECRET_KEY")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Qwen Image API
-QWEN_API_URL = os.getenv("QWEN_API_URL", "http://192.168.0.60:8000")
-
-# Z-Image API
-ZIMAGE_API_URL = os.getenv("ZIMAGE_API_URL", "http://192.168.0.60:8001")
-
-# ERNIE Image API
-ERNIE_API_URL = os.getenv("ERNIE_API_URL", "http://192.168.0.60:8002")
-
-# HiDream-O1-Image API
-HIDREAM_API_URL = os.getenv("HIDREAM_API_URL", "http://192.168.0.60:8003")
+# images-api: единый шлюз self-hosted генераторов на br-01 (qwen, z-image,
+# ernie, hidream). Заменил четыре отдельных сервиса на портах 8000–8003.
+# Ключ обязателен: шлюз слушает LAN и без X-API-Key отвечает 401.
+IMAGES_API_URL = os.getenv("IMAGES_API_URL", "http://192.168.0.60:8010")
+IMAGES_API_KEY = os.getenv("IMAGES_API_KEY")
 
 # Qwen2API (OpenAI-совместимая обёртка chat.qwen.ai)
 QWEN_CHAT_API_URL = os.getenv("QWEN_CHAT_API_URL", "http://192.168.0.58:3001/v1")
