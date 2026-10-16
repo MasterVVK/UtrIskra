@@ -58,6 +58,6 @@ QWEN_CHAT_API_KEY = os.getenv("QWEN_CHAT_API_KEY", "sk-123456")
 # Fallback LLM (запасная при ошибках Gemini) — OpenAI-совместимый эндпоинт, по умолчанию тот же, что Qwen2API
 FALLBACK_LLM_URL = os.getenv("FALLBACK_LLM_URL", QWEN_CHAT_API_URL)
 FALLBACK_LLM_KEY = os.getenv("FALLBACK_LLM_KEY", QWEN_CHAT_API_KEY)
-FALLBACK_LLM_MODEL = os.getenv("FALLBACK_LLM_MODEL", "qwen3.7-max-thinking")  # текстовая модель эндпоинта с рассуждением (см. /v1/models)
+FALLBACK_LLM_MODEL = os.getenv("FALLBACK_LLM_MODEL", "qwen3.8-max-thinking")  # текстовая модель эндпоинта с рассуждением (см. /v1/models)
 
 PROMPTS_DIR = os.getenv("PROMPTS_DIR")
