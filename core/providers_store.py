@@ -57,9 +57,12 @@ def _defaults():
                        "keys_env": "GEMINI_API_KEYS", "proxy": True},
             "qwen-fallback": {"type": "openai", "base_url": FALLBACK_LLM_URL,
                               "model": FALLBACK_LLM_MODEL,
-                              "api_key_env": "FALLBACK_LLM_KEY", "timeout": 600},
-            # Claude через официальный SDK. В цепочку по умолчанию не входит —
-            # включается в настройках, когда в .env есть ANTHROPIC_API_KEY.
+                              "api_key_env": "FALLBACK_LLM_KEY",
+                              # Qwen4 с рассуждением через браузерный канал Qwen2API отвечает
+                              # до ~10 мин на промпт в 20 тыс. знаков (замер 18.11.2026).
+                              "timeout": 1200},
+            # Claude через официальный SDK (ключ ANTHROPIC_API_KEY в .env); в цепочке
+            # по умолчанию — второй, после Qwen4.
             "opus": {"type": "anthropic", "model": "claude-opus-5-5", "effort": "high"},
         },
         # Порядок попыток: Qwen4 с рассуждением (Qwen2API) — по слепому сравнению 18.11.2026
