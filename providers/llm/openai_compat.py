@@ -9,6 +9,10 @@ LM Studio, llama.cpp-server, OpenRouter, OpenAI.
   api_key_env  — имя env-переменной с ключом (опционально)
   timeout      — секунды (default 300; thinking-модели считают долго)
   proxy        — использовать SOCKS5 из PROXY_URL (default false — обычно локальная сеть)
+  health_url   — (опционально) /health пула аккаунтов (браузерный канал Qwen2API).
+                 Если там free == 0, запрос не отправляется: провайдер сразу падает,
+                 и цепочка переходит к следующей модели. Неудачная отправка ставит
+                 аккаунту пула кулдаун, поэтому слать в пустой пул нельзя.
 """
 import logging
 import os
@@ -67,6 +71,7 @@ class OpenAICompatProvider(LLMProvider):
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": user_prompt})
+        self._check_pool()
         logger.info("LLM «%s»: запрос к %s (модель %s)", self.name, self.base_url, self.model)
         with self._client() as client:
             response = client.post(
@@ -81,6 +86,25 @@ class OpenAICompatProvider(LLMProvider):
         if not text.strip():
             raise RuntimeError(f"LLM «{self.name}»: пустой ответ модели {self.model}")
         return text
+
+    def _check_pool(self):
+        """Не слать в пул без свободных аккаунтов (см. health_url в шапке модуля).
+
+        Если сам /health недоступен, запрос уходит как обычно: проверка — защита
+        пула, а не условие работы.
+        """
+        url = self.config.get("health_url")
+        if not url:
+            return
+        try:
+            data = httpx.get(url, timeout=10).json()
+        except Exception as exc:
+            logger.warning("LLM «%s»: %s недоступен (%s) — отправляю без проверки пула",
+                           self.name, url, exc)
+            return
+        if isinstance(data, dict) and data.get("free") == 0:
+            raise RuntimeError(f"LLM «{self.name}»: в пуле нет свободных аккаунтов "
+                               f"(pool {data.get('pool')}, free 0) — запрос не отправлен")
 
     def health(self):
         if not self.base_url:

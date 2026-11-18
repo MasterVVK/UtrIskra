@@ -59,5 +59,7 @@ QWEN_CHAT_API_KEY = os.getenv("QWEN_CHAT_API_KEY", "sk-123456")
 FALLBACK_LLM_URL = os.getenv("FALLBACK_LLM_URL", QWEN_CHAT_API_URL)
 FALLBACK_LLM_KEY = os.getenv("FALLBACK_LLM_KEY", QWEN_CHAT_API_KEY)
 FALLBACK_LLM_MODEL = os.getenv("FALLBACK_LLM_MODEL", "qwen4.0-max-preview-thinking")  # текстовая модель эндпоинта с рассуждением (см. /v1/models)
+# /health пула аккаунтов Qwen2API (браузерный канал); пусто — без проверки пула перед запросом
+FALLBACK_LLM_HEALTH_URL = os.getenv("FALLBACK_LLM_HEALTH_URL", "")
 
 PROMPTS_DIR = os.getenv("PROMPTS_DIR")

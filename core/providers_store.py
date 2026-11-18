@@ -9,7 +9,7 @@ import os
 import threading
 
 from config import (BASE_STORAGE_PATH, IMAGES_API_URL, QWEN_CHAT_API_URL,
-                    FALLBACK_LLM_URL, FALLBACK_LLM_MODEL)
+                    FALLBACK_LLM_URL, FALLBACK_LLM_MODEL, FALLBACK_LLM_HEALTH_URL)
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +58,12 @@ def _defaults():
             "qwen-fallback": {"type": "openai", "base_url": FALLBACK_LLM_URL,
                               "model": FALLBACK_LLM_MODEL,
                               "api_key_env": "FALLBACK_LLM_KEY",
-                              # Qwen4 с рассуждением через браузерный канал Qwen2API отвечает
-                              # до ~10 мин на промпт в 20 тыс. знаков (замер 18.11.2026).
-                              "timeout": 1200},
+                              # Qwen4 с рассуждением отвечает за 2–4 мин на промпт в 20–30 тыс.
+                              # знаков (замер 17.11.2026). Дольше ~5 мин — значит, на аккаунте
+                              # суточный лимит: ждать бесполезно, а повтор кулдаунит пул.
+                              "timeout": 330,
+                              # /health пула Qwen2API: при free == 0 запрос не шлётся.
+                              "health_url": FALLBACK_LLM_HEALTH_URL},
             # Claude через официальный SDK (ключ ANTHROPIC_API_KEY в .env); в цепочке
             # по умолчанию — второй, после Qwen4.
             "opus": {"type": "anthropic", "model": "claude-opus-5-5", "effort": "high"},
