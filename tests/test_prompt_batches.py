@@ -639,7 +639,7 @@ class PipelineTests(BatchTestCase):
         self.assertEqual((system, user, generated),
                          (stored["system"], stored["user"], "заготовленный текст"))
         chain.assert_not_called()
-        self.assertTrue(any("промпт взят из пакетной заготовки (пакет msgbatch_test1" in line
+        self.assertTrue(any("промпт взят из заготовки (msgbatch_test1, LLM «opus»" in line
                             for line in logs.output))
         # повторный (ручной) запуск: заготовка использована — обычная цепочка, свежий рендер
         (system, user, generated), chain = self.prepare("zimage", at(5, 10))
@@ -781,13 +781,15 @@ class SchedulerTests(BatchTestCase):
                 SimpleNamespace(key=key, archived=bool(JOBS[key].get("archived"))) for key in JOBS]):
             jobs, output, next_hidream = asyncio.run(scenario())
         enabled = {key for key, (on, _, _) in SCHEDULE.items() if on and key != "archived"}
-        self.assertEqual(set(jobs), enabled | {scheduler_service.BATCH_TICK_ID})
+        self.assertEqual(set(jobs), enabled | set(scheduler_service.SERVICE_JOB_IDS))
         self.assertEqual(str(jobs[scheduler_service.BATCH_TICK_ID].trigger), "interval[0:05:00]")
+        self.assertEqual(str(jobs[scheduler_service.PREGEN_CHECK_ID].trigger), "interval[0:01:00]")
         self.assertEqual(str(jobs["hidream"].trigger), "cron[hour='4', minute='30']")
         self.assertEqual((next_hidream.hour, next_hidream.minute), (4, 30))
         # служебный тик не выдаётся за задачу в строке «активных задач»
         self.assertIn(f"активных задач: {len(enabled)} ", output[-1])
         self.assertNotIn(scheduler_service.BATCH_TICK_ID, output[-1])
+        self.assertNotIn(scheduler_service.PREGEN_CHECK_ID, output[-1])
         self.assertEqual(len(threads), 1)
         self.assertNotEqual(threads[0], threading.get_ident())   # не в потоке event loop
 

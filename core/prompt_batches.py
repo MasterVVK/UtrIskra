@@ -26,7 +26,17 @@
 Любой сбой здесь (нет сети, ошибка API, битый файл состояния) — только
 предупреждение в журнал: задача пойдёт обычной цепочкой LLM.
 
-CLI: python -m core.prompt_batches status | tick | submit <ключи...> | poll
+Вечерняя заготовка (pregen). LLM-инстанс с флагом "pregen": true (Qwen4 через
+Qwen2API) пишет тексты заранее, синхронно и строго по одному запросу: его суточная
+квота общая с другими клиентами сервиса и к утру выбрана, поэтому промпты на утро
+заказываются вечером, сразу после сброса лимита. Момент старта задаёт файл-триггер
+(pregen_trigger_file): его пишет сторона, которая видит сброс квоты; по окончании
+модуль пишет pregen_done_file с итогом, и та сторона продолжает свою работу. После
+первой же ошибки заготовка останавливается до следующего триггера: повторы
+кулдаунят пул аккаунтов. Недописанные запуски закрывает пакет Opus.
+Заготовки pregen задача берёт раньше пакетных, если инстанс есть в её цепочке.
+
+CLI: python -m core.prompt_batches status | tick | submit <ключи...> | poll | pregen
 """
 import contextlib
 import datetime
@@ -37,6 +47,7 @@ import os
 import re
 import sys
 import threading
+import time
 import uuid
 
 from apscheduler.triggers.cron import CronTrigger
@@ -67,8 +78,12 @@ KEEP_DAYS = 3                   # сколько хранить отработа
 
 LIVE = ("pending", "ready")     # заготовка ещё может пригодиться
 
+PREGEN_HORIZON_HOURS = 14       # вечером — на все запуски до следующего утра
+PREGEN_TRIGGER_MAX_AGE_HOURS = 3  # старый триггер (после простоя панели) не срабатывает
+
 _state_lock = threading.Lock()  # короткие секции «прочитал — изменил — записал»
 _tick_lock = threading.Lock()   # тик целиком, включая сетевые вызовы
+_pregen_lock = threading.Lock()  # вечерняя заготовка целиком (десятки минут)
 
 
 class _Busy(Exception):
@@ -126,7 +141,7 @@ def _load() -> dict:
     Ошибка чтения (OSError) битым файлом не считается и уходит наверх: файл,
     который не удалось прочитать, переносить нельзя — он может быть цел.
     """
-    empty = {"batches": {}, "drafts": {}, "submit_failed_at": {}}
+    empty = {"batches": {}, "drafts": {}, "submit_failed_at": {}, "pregen": {}}
     try:
         with open(STATE_PATH, encoding="utf-8") as file:
             data = json.load(file)
@@ -199,6 +214,27 @@ def batch_provider(job: dict, forced: bool = False):
     return chain[0], config
 
 
+def draft_providers(job: dict) -> list:
+    """Имена LLM, чьи заготовки задача берёт, в порядке предпочтения.
+
+    Сначала инстансы с "pregen": true из её цепочки (вечерняя заготовка), затем
+    пакетный (batch_provider). Пусто — задача заготовками не пользуется.
+    """
+    own_provider = (job.get("llm") or {}).get("provider")
+    chain = [own_provider] if own_provider else providers_store.llm_chain()
+    names = []
+    for name in chain:
+        try:
+            if providers_store.get_llm_config(name).get("pregen"):
+                names.append(name)
+        except KeyError:
+            continue
+    batch = batch_provider(job)
+    if batch is not None and batch[0] not in names:
+        names.append(batch[0])
+    return names
+
+
 def _window(draft: dict) -> tuple:
     """Когда заготовкой можно пользоваться: «около» планового времени запуска."""
     run_at = _parse(draft["run_at"])
@@ -226,13 +262,13 @@ def _retire(draft: dict, prompt_id, now: datetime.datetime) -> bool:
     return False
 
 
-def _covered(data: dict, key: str, run_at: datetime.datetime, provider_name: str,
+def _covered(data: dict, key: str, run_at: datetime.datetime, provider_names,
              count_failed: bool = True) -> bool:
-    """Есть ли на этот запуск заготовка или уже отправленный запрос."""
+    """Есть ли на этот запуск заготовка (от любого из provider_names) или запрос."""
     for draft in data["drafts"].values():
         if draft["job"] != key:
             continue
-        if draft["status"] in LIVE and draft["provider"] == provider_name:
+        if draft["status"] in LIVE and draft["provider"] in provider_names:
             start, end = _window(draft)
             if start <= run_at <= end:
                 return True
@@ -255,17 +291,20 @@ def take_draft(key: str, job: dict, prompt_row: dict, now: datetime.datetime = N
     задача должна запуститься обычной цепочкой LLM.
     """
     try:
-        provider = batch_provider(job)
-        if provider is None:
+        names = draft_providers(job)
+        if not names:
             return None
-        return _take(key, provider[0], prompt_row["id"], now or _now())
+        return _take(key, names, prompt_row["id"], now or _now())
     except Exception as exc:
         logger.warning("Пакетная заготовка для «%s» недоступна (%s) — обычная цепочка LLM",
                        key, exc)
         return None
 
 
-def _take(key: str, provider_name: str, prompt_id, now: datetime.datetime):
+def _take(key: str, provider_names: list, prompt_id, now: datetime.datetime):
+    def rank(draft):  # сначала предпочтительный LLM, затем ближайший запуск
+        return provider_names.index(draft["provider"]), abs(_parse(draft["run_at"]) - now)
+
     with _state() as data:
         best = waiting = None
         for draft in data["drafts"].values():
@@ -273,12 +312,11 @@ def _take(key: str, provider_name: str, prompt_id, now: datetime.datetime):
                 continue
             if _retire(draft, prompt_id, now):
                 continue
-            if now < _window(draft)[0] or draft["provider"] != provider_name:
+            if now < _window(draft)[0] or draft["provider"] not in provider_names:
                 continue  # заготовка для другого, более позднего запуска
             if draft["status"] == "pending":
                 waiting = draft
-            elif best is None or (abs(_parse(draft["run_at"]) - now)
-                                  < abs(_parse(best["run_at"]) - now)):
+            elif best is None or rank(draft) < rank(best):
                 best = draft
         if best is None:
             if waiting is not None:
@@ -429,7 +467,7 @@ def submit_due(now: datetime.datetime = None) -> list:
             failed_at = data["submit_failed_at"].get(name)
             todo = [(key, job, run_at) for key, job, run_at in runs
                     if earliest <= run_at <= now + horizon
-                    and not _covered(data, key, run_at, name)]
+                    and not _covered(data, key, run_at, draft_providers(job))]
         # ждём, пока ближайший неподготовленный запуск не окажется в пределах lead:
         # так в один пакет попадают все запуски окна, а не по одному на тик
         if not todo or min(run_at for _, _, run_at in todo) - now > lead:
@@ -467,7 +505,7 @@ def submit_forced(keys: list, now: datetime.datetime = None) -> list:
         entry = schedule.get(key)
         run_at = next_run(entry, now) if entry and entry["enabled"] else now
         with _state() as data:
-            if _covered(data, key, run_at, name, count_failed=False):
+            if _covered(data, key, run_at, draft_providers(job) + [name], count_failed=False):
                 logger.info("Задача «%s»: на запуск %s уже есть заготовка или запрос — "
                             "повторно не отправляю", key, f"{run_at:%d.%m %H:%M}")
                 continue
@@ -534,6 +572,208 @@ def _submit(name: str, config: dict, runs: list, now: datetime.datetime):
             draft["batch_id"] = batch_id
             data["drafts"][draft["id"]] = draft
     return batch_id
+
+
+# ----------------------------------------------------------- вечерняя заготовка
+
+def pregen_providers() -> list:
+    """(имя, конфиг) LLM-инстансов с "pregen": true."""
+    return [(name, config) for name, config in providers_store.load_providers()["llm"].items()
+            if config.get("pregen")]
+
+
+def _hours(config: dict, name: str, default: int) -> datetime.timedelta:
+    try:
+        return datetime.timedelta(hours=max(1, float(config.get(name, default))))
+    except (TypeError, ValueError):
+        return datetime.timedelta(hours=default)
+
+
+def _pregen_runs(name: str, config: dict, now: datetime.datetime) -> list:
+    """Запуски, которым инстанс name может заготовить текст: задача включена, берёт
+    его заготовки, запуск в [сейчас + 10 мин; сейчас + горизонт] и ещё не закрыт."""
+    schedule = schedule_store.load_schedule()
+    earliest = now + datetime.timedelta(minutes=MIN_AHEAD_MINUTES)
+    latest = now + _hours(config, "pregen_horizon_hours", PREGEN_HORIZON_HOURS)
+    runs = []
+    with _state() as data:
+        for key, job in jobs_store.load_jobs().items():
+            entry = schedule.get(key)
+            if job.get("archived") or not entry or not entry["enabled"]:
+                continue
+            if job.get("pipeline", "image") not in PROMPT_PIPELINES:
+                continue
+            names = draft_providers(job)
+            if name not in names:
+                continue
+            run_at = next_run(entry, now)
+            if earliest <= run_at <= latest and not _covered(data, key, run_at, names):
+                runs.append((key, job, run_at))
+    return sorted(runs, key=lambda run: run[2])
+
+
+def pregenerate(now: datetime.datetime = None) -> dict:
+    """Вечерняя заготовка: по одному синхронному запросу на запуск, стоп на первой ошибке.
+
+    Возвращает итог {started, finished, ok, failed, reason} — он же уходит в
+    pregen_done_file. Исключений не бросает.
+    """
+    now = now or _now()
+    started = time.monotonic()
+
+    def clock():  # «сейчас» в шкале now: в тестах now задан, а запросы идут по-настоящему
+        return now + datetime.timedelta(seconds=time.monotonic() - started)
+
+    summary = {"started": _iso(now), "finished": None, "ok": 0, "failed": 0, "reason": None}
+    try:
+        with _exclusive(".pregen.lock", _pregen_lock, blocking=False):
+            _housekeeping(now)
+            for name, config in pregen_providers():
+                runs = _pregen_runs(name, config, now)
+                if not runs:
+                    continue
+                provider = build_llm_provider(name, config)
+                logger.info("Вечерняя заготовка (LLM «%s»): %d запусков — %s", name, len(runs),
+                            ", ".join(f"{key} на {run_at:%d.%m %H:%M}" for key, _, run_at in runs))
+                for index, (key, job, run_at) in enumerate(runs):
+                    if not _pregen_one(name, config, provider, key, job, run_at, summary,
+                                       clock):
+                        left = len(runs) - index - 1
+                        summary["reason"] = summary["reason"] or "ошибка"
+                        logger.warning("Вечерняя заготовка остановлена после ошибки: %s. "
+                                       "Остальные %d запусков подготовит пакет Opus или "
+                                       "обычная цепочка", summary["reason"], left)
+                        break
+                if summary["failed"]:
+                    break
+    except _Busy:
+        summary["reason"] = "вечерняя заготовка уже идёт"
+        logger.info("Вечерняя заготовка уже выполняется — пропуск")
+    except Exception as exc:
+        summary["reason"] = f"сбой: {exc}"
+        logger.warning("Вечерняя заготовка: сбой — %s", exc)
+    summary["finished"] = _iso(clock())
+    return summary
+
+
+def _pregen_one(name, config, provider, key, job, run_at, summary, clock) -> bool:
+    """Один запрос. True — заготовка записана; False — ошибка (в summary)."""
+    prompt = prompts_store.get_prompt(key)
+    if prompt is None:
+        return True  # промпт не задан — запуск задачи сам сообщит об этом ошибкой
+    # Рендер — как в _submit (и в core/pipeline.py: _prepare_prompt), с датой запуска.
+    llm_config = job.get("llm") or {}
+    user_prompt = prompts_store.render_user_prompt(
+        prompt["user"],
+        max_theme=int(llm_config.get("max_theme", 10)),
+        max_category=int(llm_config.get("max_category", 14)),
+        now=run_at,
+    )
+    started = time.monotonic()
+    try:
+        text = provider.generate(prompt["system"], user_prompt,
+                                 temperature=float(llm_config.get("temperature", 0.7))).strip()
+    except Exception as exc:
+        summary["failed"] += 1
+        summary["reason"] = f"{key}: {exc}"[:300]
+        return False
+    created = clock()
+    draft = {
+        "id": f"{re.sub(r'[^A-Za-z0-9_-]', '_', key)[:40]}-{run_at:%Y%m%dT%H%M}-"
+              f"{uuid.uuid4().hex[:6]}",
+        "job": key,
+        "run_at": _iso(run_at),
+        "status": "ready",
+        "provider": name,
+        "batch_id": f"pregen-{created:%Y%m%dT%H%M}",
+        "prompt_id": prompt["id"],
+        "lead_minutes": DEFAULT_LEAD_MINUTES,
+        "system": prompt["system"],
+        "user": user_prompt,
+        "text": text,
+        "model": config.get("model"),
+        "seconds": round(time.monotonic() - started, 1),
+        "created_at": _iso(created),
+        "ready_at": _iso(created),
+    }
+    with _state() as data:
+        data["drafts"][draft["id"]] = draft
+    summary["ok"] += 1
+    logger.info("Вечерняя заготовка %s готова: %d символов за %.0f с",
+                _label(draft), len(text), draft["seconds"])
+    return True
+
+
+def _read_trigger(path: str):
+    """Время из файла-триггера (одна строка ISO) или None."""
+    try:
+        with open(path, encoding="utf-8") as file:
+            moment = _parse(file.read().strip())
+    except (OSError, ValueError):
+        return None
+    return moment if moment.tzinfo else moment.astimezone()
+
+
+def _write_done(path: str, summary: dict):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp_path = path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as file:
+        json.dump(summary, file, ensure_ascii=False)
+    os.replace(tmp_path, path)
+
+
+def pregen_check(now: datetime.datetime = None, background: bool = True) -> dict:
+    """Раз в минуту (планировщик панели): новый триггер — запустить вечернюю заготовку.
+
+    Триггер — файл pregen_trigger_file с временем ISO; срабатывает, если это время
+    новее последнего обработанного и не старше PREGEN_TRIGGER_MAX_AGE_HOURS. Итог
+    пишется в pregen_done_file. Заготовка идёт десятки минут, поэтому по умолчанию —
+    в отдельном потоке (задание планировщика сразу освобождается). Исключений не
+    бросает. Возвращает {"trigger": ...} (в потоке) или итог (background=False), иначе {}.
+    """
+    now = now or _now()
+    try:
+        configs = [config for _, config in pregen_providers()
+                   if config.get("pregen_trigger_file")]
+        if not configs:
+            return {}
+        config = configs[0]
+        moment = _read_trigger(config["pregen_trigger_file"])
+        if moment is None or now - moment > datetime.timedelta(hours=PREGEN_TRIGGER_MAX_AGE_HOURS):
+            return {}
+        with _state() as data:
+            seen = data.setdefault("pregen", {}).get("last_trigger")
+            if seen and _parse(seen) >= moment:
+                return {}
+            data["pregen"]["last_trigger"] = _iso(moment)
+        logger.info("Вечерняя заготовка: триггер %s — начинаю", _iso(moment))
+        if background:
+            threading.Thread(target=_pregen_and_report, args=(config, moment, now),
+                             name="pregen", daemon=True).start()
+            return {"trigger": _iso(moment)}
+        return _pregen_and_report(config, moment, now)
+    except Exception as exc:
+        logger.warning("Вечерняя заготовка: сбой проверки триггера — %s", exc)
+        return {}
+
+
+def _pregen_and_report(config: dict, moment: datetime.datetime, now: datetime.datetime) -> dict:
+    """Заготовка и отчёт о ней: в состоянии и в pregen_done_file (его ждёт другая сторона)."""
+    summary = pregenerate(now)
+    summary["trigger"] = _iso(moment)
+    try:
+        with _state() as data:
+            data.setdefault("pregen", {})["last_summary"] = summary
+    except Exception as exc:
+        logger.warning("Вечерняя заготовка: итог не записан в состояние — %s", exc)
+    if config.get("pregen_done_file"):
+        try:
+            _write_done(config["pregen_done_file"], summary)
+        except OSError as exc:
+            logger.warning("Вечерняя заготовка: %s не записан — %s", config["pregen_done_file"], exc)
+    logger.info("Вечерняя заготовка завершена: готово %d, ошибок %d%s", summary["ok"],
+                summary["failed"], f" ({summary['reason']})" if summary["reason"] else "")
+    return summary
 
 
 # ------------------------------------------------------------------------ тик
@@ -604,6 +844,11 @@ def _main(argv: list) -> int:
         for line in result["polled"]:
             print("Опрос:", line)
         print("Отправлено пакетов:", ", ".join(result["submitted"]) or "нет")
+    elif command == "pregen" and len(argv) == 1:
+        # Ручной запуск: шлёт запросы в Qwen2API — только по согласованию (квота общая).
+        summary = pregenerate()
+        print(f"Вечерняя заготовка: готово {summary['ok']}, ошибок {summary['failed']}"
+              + (f", причина: {summary['reason']}" if summary["reason"] else ""))
     elif (command == "submit" and len(argv) > 1) or (command == "poll" and len(argv) == 1):
         try:
             # под тем же замком, что и тик панели: иначе два процесса могли бы
@@ -620,7 +865,7 @@ def _main(argv: list) -> int:
             return 1
     else:
         print("Использование: python -m core.prompt_batches status | tick | "
-              "submit <ключи задач...> | poll")
+              "submit <ключи задач...> | poll | pregen")
         return 2
     return 0
 

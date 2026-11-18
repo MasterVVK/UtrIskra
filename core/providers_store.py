@@ -63,15 +63,21 @@ def _defaults():
                               # суточный лимит: ждать бесполезно, а повтор кулдаунит пул.
                               "timeout": 330,
                               # /health пула Qwen2API: при free == 0 запрос не шлётся.
-                              "health_url": FALLBACK_LLM_HEALTH_URL},
+                              "health_url": FALLBACK_LLM_HEALTH_URL,
+                              # Вечерняя заготовка: включается флагом "pregen": true вместе
+                              # с путями pregen_trigger_file / pregen_done_file (протокол с
+                              # другим клиентом квоты — см. core/prompt_batches.py).
+                              "pregen": False},
             # Claude через официальный SDK (ключ ANTHROPIC_API_KEY в .env); в цепочке
             # по умолчанию — второй, после Qwen4.
             "opus": {"type": "anthropic", "model": "claude-opus-5-5", "effort": "high"},
         },
-        # Порядок попыток: Qwen4 с рассуждением (Qwen2API) — по слепому сравнению 18.11.2026
-        # пишет промпты лучше всех, но сервис нестабилен (502), — затем Claude Opus, затем Gemini.
-        # Пакетная заготовка Opus (флаг batch) действует, только когда opus первый в цепочке.
-        "llm_chain": ["qwen-fallback", "opus", "gemini"],
+        # Порядок синхронных попыток: Claude Opus, Qwen4 с рассуждением (Qwen2API), Gemini.
+        # Qwen4 по слепому сравнению пишет промпты лучше всех, но его суточная квота общая
+        # с другими клиентами сервиса и к утру выбрана. Поэтому он пишет тексты вечером,
+        # заранее (флаг "pregen" у qwen-fallback, core/prompt_batches.py), а пропуски
+        # закрывает пакет Opus (флаг "batch"; действует, только когда opus первый в цепочке).
+        "llm_chain": ["opus", "qwen-fallback", "gemini"],
         "image": {
             "stability": {"type": "stability"},
             "kandinsky": {"type": "kandinsky"},

@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 # Имя заведомо не совпадает ни с одним ключом задачи из jobs.json.
 BATCH_TICK_ID = "__prompt_batches_tick__"
 BATCH_TICK_MINUTES = 5
+# Проверка триггера вечерней заготовки (pregen): раз в минуту, без сети, если
+# триггера нет. Сама заготовка идёт в своём потоке (prompt_batches.pregen_check).
+PREGEN_CHECK_ID = "__prompt_pregen_check__"
+SERVICE_JOB_IDS = (BATCH_TICK_ID, PREGEN_CHECK_ID)
 
 
 class _QuietBatchTick(logging.Filter):
@@ -24,7 +28,8 @@ class _QuietBatchTick(logging.Filter):
     «Логи») утонули бы запуски задач. Предупреждения и ошибки тика остаются."""
 
     def filter(self, record):
-        return record.levelno > logging.INFO or BATCH_TICK_ID not in record.getMessage()
+        message = record.getMessage()
+        return record.levelno > logging.INFO or not any(i in message for i in SERVICE_JOB_IDS)
 
 
 class SchedulerService:
@@ -44,9 +49,12 @@ class SchedulerService:
         self.scheduler.add_job(self._batch_tick, IntervalTrigger(minutes=BATCH_TICK_MINUTES),
                                id=BATCH_TICK_ID, name=BATCH_TICK_ID, replace_existing=True,
                                max_instances=1, coalesce=True, misfire_grace_time=120)
+        self.scheduler.add_job(self._pregen_check, IntervalTrigger(minutes=1),
+                               id=PREGEN_CHECK_ID, name=PREGEN_CHECK_ID, replace_existing=True,
+                               max_instances=1, coalesce=True, misfire_grace_time=60)
         logging.getLogger("apscheduler.executors.default").addFilter(_QuietBatchTick())
         self.scheduler.start()
-        enabled = [job.id for job in self.scheduler.get_jobs() if job.id != BATCH_TICK_ID]
+        enabled = [job.id for job in self.scheduler.get_jobs() if job.id not in SERVICE_JOB_IDS]
         logger.info("Планировщик запущен, активных задач: %d %s", len(enabled), enabled)
 
     def shutdown(self):
@@ -76,6 +84,14 @@ class SchedulerService:
             logger.info("Тик пакетной заготовки промптов прерван остановкой сервиса")
         except Exception as exc:  # tick() сам ничего не бросает; это страховка
             logger.warning("Тик пакетной заготовки промптов не выполнен: %s", exc)
+
+    async def _pregen_check(self):
+        try:
+            await asyncio.to_thread(prompt_batches.pregen_check)
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:  # pregen_check сам ничего не бросает; это страховка
+            logger.warning("Проверка вечерней заготовки не выполнена: %s", exc)
 
     def apply(self, key, enabled, hour, minute):
         """Сохраняет настройку и перестраивает cron-задачу генератора."""

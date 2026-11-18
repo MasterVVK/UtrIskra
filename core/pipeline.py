@@ -74,9 +74,9 @@ def _prepare_prompt(key: str, job: dict):
         raise RuntimeError(f"У задачи «{key}» нет промпта — задайте его в настройках задачи")
     draft = prompt_batches.take_draft(key, job, prompt_row)
     if draft is not None:
-        logger.info("Задача «%s»: промпт взят из пакетной заготовки (пакет %s, %s, "
-                    "%d символов) — синхронный вызов LLM не нужен",
-                    key, draft["batch_id"], draft.get("model"), len(draft["text"]))
+        logger.info("Задача «%s»: промпт взят из заготовки (%s, LLM «%s», %s, "
+                    "%d символов) — синхронный вызов LLM не нужен", key, draft["batch_id"],
+                    draft["provider"], draft.get("model"), len(draft["text"]))
         return draft["system"], draft["user"], draft["text"]
     return _render_and_generate(job, prompt_row)
 
