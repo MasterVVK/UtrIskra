@@ -11,18 +11,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Четыре отдельных FastAPI-сервиса на br-01 (qwen 8000, zimage 8001, ernie 8002,
 hidream 8003) заменены одним шлюзом `images-api` — `http://192.168.0.60:8010`
 (проект `/home/user/images-api` на br-01). Он держит очередь, историю задач,
-арбитраж VRAM и два GPU-узла: br-01 и nv-02.
+арбитраж VRAM и три GPU-узла: br-01 и nv-02 (RTX 3090, карты делят с соседями —
+ollama, эмбеддинги и другие сервисы) и `dml` (RTX PRO 6000 96 ГБ, внешний боевой сервер,
+модели только «целиком на карте», в docker; любые работы там — по согласованию
+с владельцем).
 
 Со стороны UtrIskra это один провайдер `providers/image/images_api.py`
-(тип `images_api`) и четыре инстанса в `providers.json` с прежними именами —
-`qwen`, `zimage`, `ernie`, `hidream`, чтобы задачи и расписание не переезжали.
-Общие `base_url` и `api_key_env`, у каждого свой `model` и своя схема `params`.
+(тип `images_api`) и инстансы в `providers.json` — `qwen`, `zimage`, `ernie`,
+`hidream`, `moss`. Общие `base_url` и `api_key_env`, у каждого свой `model` и своя
+схема `params`. Необязательный `fallback_models` — «модель → запасная»: если шлюз
+отказал по ресурсам (`vram_unavailable`, `vram_oom`, `model_unavailable`), провайдер
+повторяет задачу на запасной модели (ошибки запроса и таймауты не подменяются).
+Необязательный `vram_wait_rounds` — сколько раз заново поставить ту же модель, если
+запасной нет, а шлюз не дождался свободной карты (`vram_unavailable`, каждое ожидание
+до 10 мин); у `minimax` — 5.
 
 Что изменилось в контракте по сравнению со старыми сервисами:
 - обязателен заголовок `X-API-Key` (`IMAGES_API_KEY` в .env, ключ не админский);
-- модели названы плоско: `qwen-image`, `z-image-base`, `z-image-turbo`,
-  `ernie-image`, `ernie-image-turbo`, `hidream-o1` (прежние `base`/`sft`/`turbo`
-  шлюз отвергает с 422 — они значили разное в разных сервисах);
+- модели названы плоско: `qwen-image`, `qwen-image-2.1`, `qwen-image-2.1-turbo`,
+  `z-image-base`, `z-image-turbo`, `ernie-image`, `ernie-image-turbo`, `hidream-o1`
+  (прежние `base`/`sft`/`turbo` шлюз отвергает с 422 — они значили разное в разных
+  сервисах);
 - CFG у всех называется `guidance_scale` (`cfg_scale` принимается как алиас);
 - ожидание — `GET /api/v1/tasks/{id}/wait`, поллинг больше не нужен;
 - `image_url` относительный и подписанный (`?sig=`), провайдер дополняет его base_url;
@@ -32,6 +41,43 @@ hidream 8003) заменены одним шлюзом `images-api` — `http://
 - появился статус `waiting_vram`: карта занята соседями (ollama, RAG, TTS),
   шлюз ждёт до 10 минут и отказывает с `error_code=vram_unavailable`;
 - `use_pe` — улучшение промпта внешней LLM на стороне шлюза, VRAM не занимает.
+
+Задача `qwen` с 17.11.2026 работает на **Qwen-Image 2.1** (бэкенд `qwen21` шлюза).
+Варианты одного чекпойнта различаются только размещением весов: `qwen-image-2.1-full`
+(всё на карте, только узел dml, 89 с на картинку), `qwen-image-2.1-bf16` (полные веса
+на 3090, 17.7 ГБ), `qwen-image-2.1` (fp8, 10.7 ГБ — результат заметно отличается от
+эталона). Задача просит `-full` и по `fallback_models` спускается к `-bf16` и fp8.
+Родное разрешение 2K (16:9 — 2752×1536), 40 шагов, CFG по
+умолчанию выключен (`guidance_scale=1.0`; negative_prompt действует только при
+значении больше 1 и удваивает время). У `qwen-image-2.1-turbo` шаги (8) зашиты в
+чекпойнт — другое число шагов и непустой negative_prompt шлюз отвергает с 422.
+Запись прежней 2512 (`qwen-image`) в реестре шлюза осталась, но её веса удалены с
+обоих узлов 17.11.2026: для отката их надо скачать заново (`Ilus-AI/Qwen-Image-2512-FP8`,
+~50 ГБ), сменить `model` у инстанса и вернуть задаче 50 шагов и CFG 4.0. Веса 2.1 —
+под Qwen Research License (некоммерческое использование).
+
+HiDream-O1-Image (задача `hidream`) с 18.11.2026 доступна и на узле dml (34 с на картинку против ~130 с на 3090); шлюз сам выбирает узел с наибольшим запасом памяти, то есть при свободной большой карте — dml.
+
+ERNIE (задача `ernie`) с 18.11.2026 просит `ernie-image-full` — тот же чекпойнт
+ERNIE-Image SFT целиком на карте узла dml (без встроенного prompt-enhancer); по
+`fallback_models` спускается к `ernie-image` на 3090, где энкодер живёт в RAM и задача
+часто не стартует из-за соседей по карте (`vram_unavailable`).
+
+На br-01 стоит сторож `images-dml-gpu-watchdog.timer` (раз в 3 мин, скрипт
+`infra/big-node/gpu-watchdog.sh` проекта шлюза): если контейнер воркера на dml потерял
+GPU («Failed to initialize NVML»), он пересоздаёт этот контейнер.
+
+Задача `moss` (с 17.11.2026; с 18.11.2026 — в канал, 04:00 UTC) — **MOSS-Image SFT**
+(`moss-image`, OpenMOSS, Apache-2.0): ~2 Мп, сильна в надписях, включая многострочные;
+CFG 3.0.
+
+Задача `minimax` (с 18.11.2026, 03:30 UTC) — **MiniMax-H3-Image** (`minimax-h3-image`,
+только узел dml): 5472×3072 (16.8 Мп), ~6.5 мин на картинку, пик 68 ГБ; шаги и guidance
+зашиты в чекпойнт, negative_prompt нет. Тематика — большие многолюдные панорамы (целое
+место в будний день, десятки маленьких сюжетов). Ночью — потому что днём большую карту
+dml занимают модели ollama. Telegram хранит фото не больше 2560 px по стороне, поэтому у
+задачи `publish.original_as_document`: следом за фото (JPEG-копия, уменьшенная до 2560)
+в ответ на пост уходит оригинал файлом (до 50 МБ, иначе JPEG q95 в полном размере).
 
 Если UtrIskra бросает задачу (таймаут, отмена), провайдер шлёт
 `DELETE /api/v1/tasks/{id}`: иначе задача продолжала бы эксклюзивно держать GPU.
@@ -75,8 +121,9 @@ journalctl -u utriskra-web -f          # логи сервиса
 Генерация построена на модульной архитектуре (см. `docs/architecture-providers.md`):
 - **задачи** — `storage/webapp/jobs.json`, исполняются пайплайном `core/pipeline.py` (промпт из БД с плейсхолдерами → цепочка LLM → image-провайдер → водяной знак → SQLite → Telegram); CLI: `python -m core.run <ключ>`;
 - **промпты** — в SQLite, таблица `job_prompts` (`core/prompts.py`): привязаны к задаче, каждое изменение — новая версия; редактируются на странице настроек задачи;
-- **провайдеры** — `providers/llm/*` (gemini, openai-совместимые: Ollama/vLLM/Qwen2API) и `providers/image/*` (`images_api` покрывает все self-hosted модели через единый шлюз br-01; `midjourney` — imagine + кроп сетки), инстансы в `storage/webapp/providers.json`;
-- **видео-пайплайны** — `midjourney_video` (кадр → публикация → image-to-video) и `best_image_video` (популярное фото группы по реакциям через Telethon → CDN → видео).
+- **провайдеры** — `providers/llm/*` (gemini, openai-совместимые: Ollama/vLLM/Qwen2API, anthropic: Claude через официальный SDK) и `providers/image/*` (`images_api` покрывает все self-hosted модели через единый шлюз br-01; `midjourney` — imagine + кроп сетки), инстансы в `storage/webapp/providers.json`;
+- **видео-пайплайны** — `midjourney_video` (кадр → публикация → image-to-video) и `best_image_video` (популярное фото группы по реакциям через Telethon → CDN → видео);
+- **пакетная заготовка промптов** — `core/prompt_batches.py`: тексты для ближайших запусков заказываются заранее через Anthropic Message Batches API (вдвое дешевле), см. раздел ниже.
 
 Подробности: `docs/webapp.md`.
 
@@ -90,23 +137,40 @@ python utils/database.py
 python -m core.run <ключ задачи>    # ключи: storage/webapp/jobs.json (например hidream, qwen, midjourney)
 ```
 
+### Пакетная заготовка промптов (Anthropic Message Batches)
+```bash
+python -m core.prompt_batches status            # пакеты и заготовки (с началом текста)
+python -m core.prompt_batches tick              # один проход, как у планировщика панели
+python -m core.prompt_batches submit zimage qwen  # отправить пакет вручную (флаг batch не нужен)
+python -m core.prompt_batches poll              # только опросить отправленные пакеты
+python -m unittest tests.test_prompt_batches    # самопроверка без сети (pytest в .venv нет)
+```
+Включается флагом в конфиге LLM-инстанса типа `anthropic` (страница «Провайдеры» или `providers.json`, перезапуск не нужен): `"batch": true`, необязательные `"batch_lead_minutes"` (120) и `"batch_horizon_minutes"` (360). Действует, только если инстанс — первый в цепочке задачи (`llm_chain` или свой провайдер задачи). Без флага ничего не отправляется и заготовки не используются.
+
+- Тик раз в 5 минут (`webapp/scheduler_service.py`, служебное задание `__prompt_batches_tick__`, выполняется в потоке): опрашивает отправленные пакеты и, когда до ближайшего неподготовленного запуска ≤ lead минут, шлёт один пакет на все включённые в расписании задачи пайплайнов `image`/`midjourney_video`, чей запуск попадает в окно [сейчас + 10 мин; сейчас + horizon].
+- Промпт рендерится тем же `prompts.render_user_prompt` с настройками задачи (`max_theme`/`max_category`), что и в пайплайне, но с датой запуска; отрендеренные system/user хранятся в заготовке и попадают в `daily_images` вместе с текстом. Рендер и выбор первого LLM в `core/prompt_batches.py` зеркалят `_prepare_prompt`/`_generate_text` — менять вместе (совпадение проверяют тесты).
+- `_prepare_prompt` берёт заготовку, если она готова, не использована, время — от (запуск − lead − 30 мин) до (запуск + 12 ч) и id строки `job_prompts` не изменился; иначе — обычная цепочка LLM (синхронный Opus и далее). Ручной запуск в этом окне тоже забирает заготовку.
+- В пакетном запросе нет `stream` и `fallbacks` (API их запрещает), `temperature`/`top_p` не шлются никогда; отказ, обрыв по `max_tokens`, ошибка и просрочка заготовкой не становятся и на тот же запуск повторно не заказываются.
+- Состояние — `storage/webapp/prompt_batches.json` (атомарная запись, блокировка threading + flock: панель, поток пайплайна и CLI); записи старше 3 суток удаляются. Любой сбой механизма — предупреждение в журнал, задача идёт обычной цепочкой.
+- Расписание и окна считаются в локальном времени сервера (сейчас UTC) тем же `CronTrigger`, что у планировщика.
+
 ## Архитектура
 
 ### Основной поток работы (пайплайн `image`)
 1. **APScheduler внутри веб-панели** запускает задачу по расписанию (или вручную из UI)
-2. **Промпт задачи** читается из SQLite (`job_prompts`), плейсхолдеры рендерятся, текст генерируется цепочкой LLM-провайдеров (fallback настраивается)
-3. **Image-провайдер** создаёт изображение (bytes) через соответствующий API
+2. **Промпт задачи** читается из SQLite (`job_prompts`), плейсхолдеры рендерятся, текст генерируется цепочкой LLM-провайдеров (fallback настраивается); если текст уже заготовлен пакетом (`core/prompt_batches.py`), берётся заготовка и LLM не вызывается
+3. **Image-провайдер** создаёт изображение (bytes) через соответствующий API. Если генератор отклонил текст своей модерацией (провайдер бросает `PromptRejected`; сейчас так делает Yandex Art — его модерация смотрит на отдельные слова, например «голые тополя»), пайплайн пишет новый промпт (новый рендер, цепочка LLM) и повторяет — до `prompt_rewrites_on_reject` раз (по умолчанию 2)
 4. Изображение сохраняется в `storage/images/{year}/{month}/{filename}.png`, накладывается водяной знак
 5. Метаданные записываются в SQLite (`storage/database/daily_images.db`)
-6. Публикация в Telegram через `core/publisher.py` (ретраи, debug-режим, caption)
+6. Публикация в Telegram через `core/publisher.py` (ретраи, debug-режим, caption). Фото тяжелее 9,5 МБ (лимит Bot API — 10 МБ; PNG 2752×1536 до него доходит) уходит JPEG-копией, оригинал в архиве не меняется
 
 ### Структура модулей
 
 **config.py**: Централизованная конфигурация через .env переменные. Все API ключи и пути загружаются здесь.
 
-**core/**: пайплайны (`pipeline.py`), задачи (`jobs.py`), промпты (`prompts.py`), провайдеры-конфиги (`providers_store.py`), публикация (`publisher.py`), runtime-настройки (`app_settings.py`), CLI (`run.py`)
+**core/**: пайплайны (`pipeline.py`), задачи (`jobs.py`), промпты (`prompts.py`), пакетная заготовка промптов (`prompt_batches.py`), провайдеры-конфиги (`providers_store.py`), публикация (`publisher.py`), runtime-настройки (`app_settings.py`), CLI (`run.py`)
 
-**providers/**: адаптеры LLM (`llm/`: gemini с ротацией ключей и прокси, openai-совместимые) и генераторов изображений (`image/`: images_api, stability, dalle, flux, kandinsky, yandex, gemini_image, qwen_chat, midjourney)
+**providers/**: адаптеры LLM (`llm/`: gemini с ротацией ключей и прокси, openai-совместимые, anthropic) и генераторов изображений (`image/`: images_api, stability, dalle, flux, kandinsky, yandex, gemini_image, qwen_chat, midjourney)
 
 **services/**: низкоуровневые обёртки API, используемые провайдерами: `midjourney_service.py` (Kolersky: imagine/video/upload на CDN), `kandinsky_service.py`, `yandex_service.py`, `qwen_chat_service.py`
 
@@ -128,6 +192,7 @@ python -m core.run <ключ задачи>    # ключи: storage/webapp/jobs.
 - `FONTS_PATH` - путь к шрифтам для водяных знаков на изображениях
 
 - `IMAGES_API_URL`, `IMAGES_API_KEY` - адрес и ключ шлюза images-api на br-01 (задачи qwen, zimage, ernie, hidream)
+- `ANTHROPIC_API_KEY` - (опционально) ключ Anthropic для LLM-инстанса `opus` (тип `anthropic`, модель `claude-opus-5-5`); запросы идут через `PROXY_URL`. Claude Opus 5.5 не принимает `temperature` — параметр задачи к нему не передаётся. Тем же ключом работает пакетная заготовка промптов (флаг `"batch": true` у инстанса)
 
 API ключи генераторов (по необходимости):
 - `STABILITY_API_KEY`, `BFL_API_KEY`, `OPENAI_API_KEY`, `MIDJOURNEY_API_TOKEN`, `KANDINSKY_API_KEY`, `KANDINSKY_SECRET_KEY`, `OAUTH_TOKEN` (Yandex), `FOLDER_ID` (Yandex)
@@ -144,4 +209,6 @@ SQLite схема (`daily_images`):
 
 ## Расписание публикаций
 
-Управляется из веб-панели (дашборд: тумблер + время у каждой задачи), хранится в `storage/webapp/schedule.json`. По умолчанию всё выключено.
+Управляется из веб-панели (дашборд: тумблер + время у каждой задачи), хранится в `storage/webapp/schedule.json`. По умолчанию всё выключено. Время — в часовом поясе сервера (сейчас UTC).
+
+Промпты задач (с 17.11.2026) построены на таблицах: числа запуска (`{random_theme}`, `{random_category}`, `{random_seed}`) выбирают строки таблиц тем, стилей, ракурсов, света и времени года из system-части, поэтому разнообразие не зависит от «фантазии» LLM. У каждой задачи своя тематика, чтобы картинки одного дня не повторялись: zimage — ландшафты мира, qwen — люди за делом и ремёсла (иногда надпись), hidream — архитектура и интерьеры, ernie — живая природа вблизи, moss — предметный мир, dalle — мифы, сказки и редкие исторические эпизоды, yandex — Россия и север (запрос на русском, лимит API 500 знаков), qwen_chat — праздники и обычаи народов мира, minimax — большие многолюдные панорамы (место целиком в будний день). Цепочка LLM (с 18.11.2026): `qwen-fallback` (Qwen4 с рассуждением через Qwen2API — в слепом сравнении писал промпты лучше всех, но сервис нестабилен) → `opus` → `gemini`. Пока первым стоит Qwen4, пакетная заготовка Opus не действует (флаг `batch` у `opus` остаётся, вернётся сама, если поставить `opus` первым).

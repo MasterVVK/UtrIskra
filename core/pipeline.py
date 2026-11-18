@@ -19,10 +19,11 @@ import os
 
 from config import IMAGES_PATH
 from core import jobs as jobs_store
+from core import prompt_batches
 from core import prompts as prompts_store
 from core import providers_store
 from core.publisher import publish_media
-from providers.image.base import build_image_provider, download_bytes
+from providers.image.base import PromptRejected, build_image_provider, download_bytes
 from providers.llm.base import build_llm_provider
 from utils.database import save_to_database
 from utils.image_utils import add_date_to_image
@@ -62,11 +63,27 @@ def _generate_text(job: dict, system_prompt: str, user_prompt: str) -> str:
 
 
 def _prepare_prompt(key: str, job: dict):
-    """(system, user, generated) — промпт задачи из БД, отрендеренный и прогнанный через LLM."""
-    llm_config = job.get("llm", {})
+    """(system, user, generated) — промпт задачи из БД, отрендеренный и прогнанный через LLM.
+
+    Если текст уже заготовлен пакетом (core/prompt_batches.py), берётся он —
+    вместе с теми system/user, по которым его писала модель: в историю должно
+    попасть именно то, из чего получился текст, а не новый рендер.
+    """
     prompt_row = prompts_store.get_prompt(key)
     if prompt_row is None:
         raise RuntimeError(f"У задачи «{key}» нет промпта — задайте его в настройках задачи")
+    draft = prompt_batches.take_draft(key, job, prompt_row)
+    if draft is not None:
+        logger.info("Задача «%s»: промпт взят из пакетной заготовки (пакет %s, %s, "
+                    "%d символов) — синхронный вызов LLM не нужен",
+                    key, draft["batch_id"], draft.get("model"), len(draft["text"]))
+        return draft["system"], draft["user"], draft["text"]
+    return _render_and_generate(job, prompt_row)
+
+
+def _render_and_generate(job: dict, prompt_row: dict):
+    """Рендер плейсхолдеров (новые случайные числа) и текст через цепочку LLM."""
+    llm_config = job.get("llm", {})
     system_prompt = prompt_row["system"]
     user_prompt = prompts_store.render_user_prompt(
         prompt_row["user"],
@@ -89,7 +106,8 @@ async def _publish(job: dict, path: str, *, media: str = "image", caption: str =
                         chat_id=publish.get("chat_id"),
                         retries=int(publish.get("retries", 0)),
                         debug=bool(publish.get("debug", False)),
-                        caption=caption)
+                        caption=caption,
+                        original_as_document=bool(publish.get("original_as_document", False)))
 
 
 def _mj_service():
@@ -141,7 +159,22 @@ async def _run_image_job(key: str, job: dict):
                                     providers_store.get_image_config(provider_name))
     params = image_config.get("params", {})
     logger.info("Задача «%s»: генерация через «%s» %s", key, provider_name, params)
-    image_bytes = await provider.generate(generated_prompt, params)
+    # Отказ модерации генератора — не сбой: тот же текст отклонят снова, поэтому
+    # пишется новый промпт (с новой темой) и попытка повторяется.
+    rewrites = int(job.get("prompt_rewrites_on_reject", 2))
+    for attempt in range(rewrites + 1):
+        try:
+            image_bytes = await provider.generate(generated_prompt, params)
+            break
+        except PromptRejected as exc:
+            if attempt >= rewrites:
+                raise
+            logger.warning("Задача «%s»: %s — пишу новый промпт (попытка %d из %d). "
+                           "Отклонённый текст: %s", key, exc, attempt + 2, rewrites + 1,
+                           generated_prompt)
+            # Мимо пакетной заготовки: она уже израсходована на отклонённый текст.
+            system_prompt, user_prompt, generated_prompt = _render_and_generate(
+                job, prompts_store.get_prompt(key))
 
     extension = str(params.get("output_format", "png")) or "png"
     image_path = _build_image_path(job["file_prefix"], extension)

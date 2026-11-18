@@ -1,13 +1,30 @@
 """APScheduler-обёртка: cron-задачи генераторов, управляемые из интерфейса."""
+import asyncio
 import logging
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
+from core import prompt_batches
 from webapp import schedule_store
 from webapp.registry import get_generators
 
 logger = logging.getLogger(__name__)
+
+# Служебное задание: тик пакетной заготовки промптов (core/prompt_batches.py).
+# Имя заведомо не совпадает ни с одним ключом задачи из jobs.json.
+BATCH_TICK_ID = "__prompt_batches_tick__"
+BATCH_TICK_MINUTES = 5
+
+
+class _QuietBatchTick(logging.Filter):
+    """APScheduler пишет две INFO-строки на каждое срабатывание задания. Для тика
+    раз в 5 минут это ~600 строк в сутки, под которыми в app.log (страница
+    «Логи») утонули бы запуски задач. Предупреждения и ошибки тика остаются."""
+
+    def filter(self, record):
+        return record.levelno > logging.INFO or BATCH_TICK_ID not in record.getMessage()
 
 
 class SchedulerService:
@@ -21,8 +38,15 @@ class SchedulerService:
             entry = schedule[generator.key]
             if entry["enabled"] and not generator.archived:
                 self._add_job(generator.key, entry["hour"], entry["minute"])
+        # Тик регистрируется всегда: флаг batch у LLM-инстанса переключается
+        # в панели на ходу, а без него тик ничего не отправляет и в сеть не ходит.
+        # misfire_grace_time щедрый — опоздавший тик лучше выполнить, чем пропустить.
+        self.scheduler.add_job(self._batch_tick, IntervalTrigger(minutes=BATCH_TICK_MINUTES),
+                               id=BATCH_TICK_ID, name=BATCH_TICK_ID, replace_existing=True,
+                               max_instances=1, coalesce=True, misfire_grace_time=120)
+        logging.getLogger("apscheduler.executors.default").addFilter(_QuietBatchTick())
         self.scheduler.start()
-        enabled = [job.id for job in self.scheduler.get_jobs()]
+        enabled = [job.id for job in self.scheduler.get_jobs() if job.id != BATCH_TICK_ID]
         logger.info("Планировщик запущен, активных задач: %d %s", len(enabled), enabled)
 
     def shutdown(self):
@@ -38,6 +62,20 @@ class SchedulerService:
             self.task_manager.start(key, trigger="schedule")
         except (KeyError, RuntimeError) as exc:
             logger.warning("Запуск %s по расписанию пропущен: %s", key, exc)
+
+    async def _batch_tick(self):
+        # Тик синхронно ходит в сеть (Anthropic) и на диск — только в потоке:
+        # в event loop панели он задержал бы cron-задания, а у них допуск
+        # опоздания 1 секунда, после чего APScheduler запуск пропускает.
+        try:
+            await asyncio.to_thread(prompt_batches.tick)
+        except asyncio.CancelledError:
+            # Сервис останавливают посреди тика. Поток доработает сам (состояние
+            # он пишет атомарно), а отмену гасим: иначе APScheduler записал бы
+            # её в журнал как ошибку задания с трейсбеком.
+            logger.info("Тик пакетной заготовки промптов прерван остановкой сервиса")
+        except Exception as exc:  # tick() сам ничего не бросает; это страховка
+            logger.warning("Тик пакетной заготовки промптов не выполнен: %s", exc)
 
     def apply(self, key, enabled, hour, minute):
         """Сохраняет настройку и перестраивает cron-задачу генератора."""

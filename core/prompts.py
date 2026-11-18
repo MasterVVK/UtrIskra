@@ -32,16 +32,21 @@ def initialize():
 
 
 def get_prompt(job_key: str):
-    """Актуальная версия промпта задачи или None."""
+    """Актуальная версия промпта задачи или None.
+
+    id — id строки job_prompts: по нему пакетная заготовка (core/prompt_batches.py)
+    узнаёт, что промпт с момента заготовки не меняли.
+    """
     with sqlite3.connect(DB_PATH) as conn:
         row = conn.execute(
-            "SELECT system_prompt, user_prompt, updated_at, "
+            "SELECT id, system_prompt, user_prompt, updated_at, "
             "(SELECT COUNT(*) FROM job_prompts WHERE job_key = ?) "
             "FROM job_prompts WHERE job_key = ? ORDER BY id DESC LIMIT 1",
             (job_key, job_key)).fetchone()
     if row is None:
         return None
-    return {"system": row[0], "user": row[1], "updated_at": row[2], "version": row[3]}
+    return {"id": row[0], "system": row[1], "user": row[2],
+            "updated_at": row[3], "version": row[4]}
 
 
 def save_prompt(job_key: str, system_prompt: str, user_prompt: str) -> bool:
@@ -59,9 +64,14 @@ def save_prompt(job_key: str, system_prompt: str, user_prompt: str) -> bool:
     return True
 
 
-def render_user_prompt(user_prompt: str, max_theme: int = 10, max_category: int = 14) -> str:
-    """Подставляет плейсхолдеры в user-часть промпта."""
-    current_date = datetime.datetime.now().strftime("%d %B %Y")
+def render_user_prompt(user_prompt: str, max_theme: int = 10, max_category: int = 14,
+                       now: datetime.datetime = None) -> str:
+    """Подставляет плейсхолдеры в user-часть промпта.
+
+    now — момент, для которого рендерится {current_date}. Пакетная заготовка
+    готовится за часы до запуска и должна нести дату запуска, а не отправки.
+    """
+    current_date = (now or datetime.datetime.now()).strftime("%d %B %Y")
     random_theme = str(random.randint(1, max(1, int(max_theme))))
     random_category = str(random.randint(1, max(1, int(max_category))))
     random_seed = str(random.randint(1, 999_999))

@@ -28,10 +28,12 @@ class LLMProvider:
 
 def build_llm_provider(name: str, config: dict) -> LLMProvider:
     """Фабрика по полю config["type"]."""
+    from providers.llm.anthropic_claude import AnthropicProvider
     from providers.llm.gemini import GeminiProvider
     from providers.llm.openai_compat import OpenAICompatProvider
 
-    types = {"gemini": GeminiProvider, "openai": OpenAICompatProvider}
+    types = {"gemini": GeminiProvider, "openai": OpenAICompatProvider,
+             "anthropic": AnthropicProvider}
     provider_type = config.get("type")
     if provider_type not in types:
         raise ValueError(f"Неизвестный тип LLM-провайдера «{provider_type}» (инстанс {name})")

@@ -104,16 +104,29 @@ def _default_jobs():
              "output_format": "png"}, 17, 0),
         "qwen": _image_job(
             "Qwen Image", "qwen_story", "qwen_runner.txt", "Q", "qwen",
-            {"aspect_ratio": "16:9", "num_inference_steps": 50, "guidance_scale": 4.0,
-             "use_pe": False}, 17, 30, retries=3),
+            {"model": "qwen-image-2.1-full", "aspect_ratio": "16:9", "num_inference_steps": 40,
+             "guidance_scale": 1.0, "use_pe": False}, 17, 30, retries=3),
+        # MiniMax-H3-Image: большие панорамы, 16.8 Мп. Фото в канале Telegram уменьшит
+        # до 2560 px, поэтому оригинал уходит следом файлом. Ночью, когда большая
+        # карта узла dml свободна от соседей (модели ollama выгружаются).
+        "minimax": dict(_image_job(
+            "MiniMax H3", "minimax_story", None, "X", "minimax",
+            {"aspect_ratio": "16:9"}, 3, 30,
+            max_theme=50, max_category=14, retries=3),
+            publish={"chat_id": None, "retries": 3, "original_as_document": True}),
+        "moss": _image_job(
+            "MOSS Image", "moss_story", None, "M", "moss",
+            {"aspect_ratio": "16:9", "negative_prompt": "", "num_inference_steps": 50,
+             "guidance_scale": 3.0, "use_pe": False}, 8, 0,
+            max_theme=50, max_category=14, retries=3),
         "qwen_chat": _image_job(
             "Qwen Chat", "qwen_chat_story", "qwen_chat_runner.txt", "QC", "qwen_chat",
             {"model": "qwen3.7-plus-image", "aspect_ratio": "16:9",
              "temperature": 0.7, "top_p": 0.95}, 18, 0, retries=3),
         "ernie": _image_job(
             "ERNIE", "ernie_story", "ernie_runner.txt", "E", "ernie",
-            {"model": "ernie-image", "aspect_ratio": "16:9", "num_inference_steps": 100,
-             "guidance_scale": 4.0, "use_pe": True}, 18, 30, max_theme=50, retries=3),
+            {"model": "ernie-image-full", "aspect_ratio": "16:9", "num_inference_steps": 100,
+             "guidance_scale": 4.0, "use_pe": False}, 18, 30, max_theme=50, retries=3),
         "hidream": _image_job(
             "HiDream", "hidream_story", "hidream_runner.txt", "H", "hidream",
             {"aspect_ratio": "16:9", "num_inference_steps": 50, "guidance_scale": 5.0,

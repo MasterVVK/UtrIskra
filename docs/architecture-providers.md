@@ -32,7 +32,7 @@
 ```python
 # providers/llm/base.py
 class LLMProvider:
-    type: str                      # "gemini" | "openai"
+    type: str                      # "gemini" | "openai" | "anthropic"
     def __init__(self, name: str, config: dict): ...
     def generate(self, system_prompt: str, user_prompt: str,
                  *, temperature: float = 0.7, max_tokens: int = 8000) -> str: ...
@@ -48,6 +48,13 @@ class LLMProvider:
   Покрывает всё self-hosted: Qwen2API, Ollama, vLLM, LM Studio, llama.cpp-server,
   а также OpenRouter/OpenAI при желании. Конфиг: `base_url`, `model`,
   `api_key_env`, `timeout`.
+- **`anthropic`** — Claude через официальный SDK (`providers/llm/anthropic_claude.py`): модель
+  `claude-opus-5-5`, ключ `ANTHROPIC_API_KEY`, запросы через `PROXY_URL`. `temperature` модель
+  не принимает (параметр задачи не передаётся), глубина рассуждения задаётся `effort`.
+  С флагом `"batch": true` (и если инстанс первый в цепочке задачи) промпты для ближайших
+  запусков заготавливаются заранее через Message Batches API — вдвое дешевле; провайдер
+  собирает тело запроса для обоих путей одной функцией (`_request_params`), логика заготовки —
+  в `core/prompt_batches.py`, описание — в `webapp.md`.
 
 Инстансы — в `storage/webapp/providers.json`:
 

@@ -58,8 +58,14 @@ def _defaults():
             "qwen-fallback": {"type": "openai", "base_url": FALLBACK_LLM_URL,
                               "model": FALLBACK_LLM_MODEL,
                               "api_key_env": "FALLBACK_LLM_KEY", "timeout": 600},
+            # Claude через официальный SDK. В цепочку по умолчанию не входит —
+            # включается в настройках, когда в .env есть ANTHROPIC_API_KEY.
+            "opus": {"type": "anthropic", "model": "claude-opus-5-5", "effort": "high"},
         },
-        "llm_chain": ["gemini", "qwen-fallback"],
+        # Порядок попыток: Qwen4 с рассуждением (Qwen2API) — по слепому сравнению 18.11.2026
+        # пишет промпты лучше всех, но сервис нестабилен (502), — затем Claude Opus, затем Gemini.
+        # Пакетная заготовка Opus (флаг batch) действует, только когда opus первый в цепочке.
+        "llm_chain": ["qwen-fallback", "opus", "gemini"],
         "image": {
             "stability": {"type": "stability"},
             "kandinsky": {"type": "kandinsky"},
@@ -71,13 +77,45 @@ def _defaults():
             "qwen_chat": {"type": "qwen_chat", "base_url": QWEN_CHAT_API_URL},
             # Четыре инстанса одного шлюза: имена сохранены с времён отдельных
             # сервисов, чтобы задачи и их расписание не переезжали.
-            "qwen": _images_api("qwen-image", [
-                _aspect(),
+            # Qwen-Image 2.1 (преемник 2512): родное разрешение 2K, CFG по умолчанию
+            # выключен — negative_prompt действует только при guidance_scale > 1 и
+            # удваивает время. Варианты одного чекпойнта отличаются только тем, где
+            # лежат веса: -full — всё на большой карте узла dml, -bf16 — полные веса
+            # на 3090 (17.7 ГБ), без суффикса — веса в fp8 (10.7 ГБ). Качество у
+            # -full и -bf16 одинаковое и лучшее; задача просит его первым, а если
+            # шлюз не может запустить модель из-за памяти или узла, провайдер сам
+            # переходит к следующей по fallback_models. У turbo шаги (8) зашиты.
+            "qwen": dict(_images_api("qwen-image-2.1-full", [
+                {"key": "model", "label": "Модель (turbo: шаги = 8, без CFG и негатива)",
+                 "kind": "choice",
+                 "choices": ["qwen-image-2.1-full", "qwen-image-2.1-bf16",
+                             "qwen-image-2.1", "qwen-image-2.1-turbo"],
+                 "default": "qwen-image-2.1-full"},
+                _aspect(("16:9", "1:1", "3:2", "2:3", "4:3", "3:4", "9:16")),
+                _negative(),
+                _steps(40),
+                _guidance(1.0, "CFG (1 = выключен; больше 1 включает негативный промпт)"),
+                _use_pe(False),
+            ]), fallback_models={"qwen-image-2.1-full": "qwen-image-2.1-bf16",
+                                 "qwen-image-2.1-bf16": "qwen-image-2.1"}),
+            # MOSS-Image (OpenMOSS, Apache-2.0): ~2 Мп, сильна в тексте на картинке,
+            # включая многострочный. CFG включён при любом guidance_scale, кроме 1.0;
+            # пустой negative допустим (и рекомендован авторами для длинных промптов).
+            "moss": _images_api("moss-image", [
+                _aspect(("16:9", "1:1", "3:2", "2:3", "4:3", "3:4", "9:16")),
                 _negative(),
                 _steps(50),
-                _guidance(4.0, "CFG (true_cfg_scale)"),
+                _guidance(3.0, "CFG (рекомендуется 3–6)"),
                 _use_pe(False),
             ]),
+            # MiniMax-H3-Image (только узел dml): 16.8 Мп в 16:9 (5472×3072), ~6.5 мин,
+            # пик ~68 ГБ. Шаги (6) и guidance зашиты в чекпойнт, negative_prompt нет —
+            # из параметров только соотношение сторон. Запасной модели нет; днём карту
+            # занимают модели ollama, поэтому при vram_unavailable задача ставится
+            # заново до 5 раз (до часа ожидания в сумме).
+            "minimax": dict(_images_api("minimax-h3-image", [
+                _aspect(("16:9", "21:9", "3:2", "4:3", "1:1", "3:4", "2:3", "9:16", "9:21")),
+            ]), timeout=2400, vram_wait_rounds=5),
             "zimage": _images_api("z-image-base", [
                 {"key": "model", "label": "Модель (turbo: 9 шагов, CFG 0)", "kind": "choice",
                  "choices": ["z-image-base", "z-image-turbo"], "default": "z-image-base"},
@@ -87,15 +125,20 @@ def _defaults():
                 _guidance(5.0),
                 _use_pe(False),
             ]),
-            "ernie": _images_api("ernie-image", [
+            # ERNIE-Image SFT: -full — тот же чекпойнт целиком на большой карте узла
+            # dml; на 3090 (ernie-image) энкодер живёт в RAM, и при занятой соседями
+            # карте задача не стартует. Задача просит -full, при отказе по ресурсам
+            # провайдер спускается к ernie-image.
+            "ernie": dict(_images_api("ernie-image-full", [
                 {"key": "model", "label": "Модель (turbo: 8 шагов, CFG 1)", "kind": "choice",
-                 "choices": ["ernie-image", "ernie-image-turbo"], "default": "ernie-image"},
+                 "choices": ["ernie-image-full", "ernie-image", "ernie-image-turbo"],
+                 "default": "ernie-image-full"},
                 _aspect(("16:9", "1:1", "3:2", "2:3", "4:3", "3:4", "9:16")),
                 _negative(),
                 _steps(100),
                 _guidance(4.0),
-                _use_pe(True),
-            ]),
+                _use_pe(False),
+            ]), fallback_models={"ernie-image-full": "ernie-image"}),
             # negative_prompt у hidream нет намеренно: модель его не принимает,
             # непустое значение шлюз отвергает с 422.
             "hidream": _images_api("hidream-o1", [
