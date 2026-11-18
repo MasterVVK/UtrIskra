@@ -63,6 +63,12 @@ ERNIE-Image SFT целиком на карте узла dml (без встрое
 `fallback_models` спускается к `ernie-image` на 3090, где энкодер живёт в RAM и задача
 часто не стартует из-за соседей по карте (`vram_unavailable`).
 
+Так же с 18.11.2026 задачи `zimage` и `moss` просят `z-image-base-full` и `moss-image-full` —
+те же чекпойнты целиком на карте dml (Z-Image 30 шагов — 38 с вместо минут на 3090,
+MOSS 50 шагов — 84 с вместо 290 с) и по `fallback_models` спускаются к `z-image-base` /
+`moss-image` на 3090. На dml теперь шесть контейнеров-воркеров (minimax, qwen21, ernie,
+zimage, moss, hidream), сторож GPU следит за всеми.
+
 На br-01 стоит сторож `images-dml-gpu-watchdog.timer` (раз в 3 мин, скрипт
 `infra/big-node/gpu-watchdog.sh` проекта шлюза): если контейнер воркера на dml потерял
 GPU («Failed to initialize NVML»), он пересоздаёт этот контейнер.

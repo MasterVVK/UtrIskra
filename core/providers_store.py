@@ -113,13 +113,17 @@ def _defaults():
             # MOSS-Image (OpenMOSS, Apache-2.0): ~2 Мп, сильна в тексте на картинке,
             # включая многострочный. CFG включён при любом guidance_scale, кроме 1.0;
             # пустой negative допустим (и рекомендован авторами для длинных промптов).
-            "moss": _images_api("moss-image", [
+            # -full — тот же чекпойнт целиком на большой карте узла dml; при отказе по
+            # ресурсам провайдер спускается к moss-image (энкодер в RAM узла с 3090).
+            "moss": dict(_images_api("moss-image-full", [
+                {"key": "model", "label": "Модель", "kind": "choice",
+                 "choices": ["moss-image-full", "moss-image"], "default": "moss-image-full"},
                 _aspect(("16:9", "1:1", "3:2", "2:3", "4:3", "3:4", "9:16")),
                 _negative(),
                 _steps(50),
                 _guidance(3.0, "CFG (рекомендуется 3–6)"),
                 _use_pe(False),
-            ]),
+            ]), fallback_models={"moss-image-full": "moss-image"}),
             # MiniMax-H3-Image (только узел dml): 16.8 Мп в 16:9 (5472×3072), ~6.5 мин,
             # пик ~68 ГБ. Шаги (6) и guidance зашиты в чекпойнт, negative_prompt нет —
             # из параметров только соотношение сторон. Запасной модели нет; днём карту
@@ -128,15 +132,18 @@ def _defaults():
             "minimax": dict(_images_api("minimax-h3-image", [
                 _aspect(("16:9", "21:9", "3:2", "4:3", "1:1", "3:4", "2:3", "9:16", "9:21")),
             ]), timeout=2400, vram_wait_rounds=5),
-            "zimage": _images_api("z-image-base", [
+            # -full — Z-Image Base целиком на большой карте узла dml; при отказе по
+            # ресурсам провайдер спускается к z-image-base (энкодер в RAM узла с 3090).
+            "zimage": dict(_images_api("z-image-base-full", [
                 {"key": "model", "label": "Модель (turbo: 9 шагов, CFG 0)", "kind": "choice",
-                 "choices": ["z-image-base", "z-image-turbo"], "default": "z-image-base"},
+                 "choices": ["z-image-base-full", "z-image-base", "z-image-turbo"],
+                 "default": "z-image-base-full"},
                 _aspect(),
                 _negative(),
                 _steps(30),
                 _guidance(5.0),
                 _use_pe(False),
-            ]),
+            ]), fallback_models={"z-image-base-full": "z-image-base"}),
             # ERNIE-Image SFT: -full — тот же чекпойнт целиком на большой карте узла
             # dml; на 3090 (ernie-image) энкодер живёт в RAM, и при занятой соседями
             # карте задача не стартует. Задача просит -full, при отказе по ресурсам

@@ -95,7 +95,7 @@ def _default_jobs():
         },
         "zimage": _image_job(
             "Z-Image", "zimage_story", "zimage_runner.txt", "Z", "zimage",
-            {"model": "z-image-base", "aspect_ratio": "16:9", "num_inference_steps": 30,
+            {"model": "z-image-base-full", "aspect_ratio": "16:9", "num_inference_steps": 30,
              "guidance_scale": 5.0, "use_pe": False}, 16, 0, retries=3),
         "stability_prompts": _image_job(
             "Stability AI (промпт-файл)", "stability_story", "stability_runner.txt",
