@@ -136,11 +136,13 @@ def _default_jobs():
             {"model": "ernie-image-full", "aspect_ratio": "16:9", "num_inference_steps": 100,
              "guidance_scale": 4.0, "use_pe": False}, 18, 30, max_theme=50, retries=3,
             styles={"suits": ["nature"]}),
-        "hidream": _image_job(
-            "HiDream", "hidream_story", "hidream_runner.txt", "H", "hidream",
-            {"aspect_ratio": "16:9", "num_inference_steps": 50, "guidance_scale": 5.0,
-             "shift": 3.0, "scheduler": "default", "use_pe": True},
-            19, 0, max_theme=50, retries=3, styles={"suits": ["architecture"]}),
+        # FLUX.3 Image Klein (с 18.11.2026 вместо HiDream-O1, тема та же — архитектура и
+        # интерьеры): только узел dml, 2560×1440.
+        "flux3": _image_job(
+            "FLUX.3 Klein", "flux3_story", None, "F3", "flux3",
+            {"aspect_ratio": "16:9", "num_inference_steps": 50, "guidance_scale": 3.5,
+             "use_pe": False},
+            4, 30, max_theme=50, retries=3, styles={"suits": ["architecture"]}),
     }
 
 

@@ -159,19 +159,18 @@ def _defaults():
                 _guidance(4.0),
                 _use_pe(False),
             ]), fallback_models={"ernie-image-full": "ernie-image"}),
-            # negative_prompt у hidream нет намеренно: модель его не принимает,
-            # непустое значение шлюз отвергает с 422.
-            "hidream": _images_api("hidream-o1", [
-                _aspect(("16:9", "1:1", "21:9", "9:21", "3:2", "2:3",
-                         "4:3", "3:4", "9:7", "7:9", "9:16")),
+            # FLUX.3 Image Klein base (Black Forest Labs, с 18.11.2026 вместо HiDream-O1):
+            # только узел dml, всё на карте, 2560×1440 за ~2 мин, пик ~32 ГиБ. Шлюз не гоняет
+            # её 9B-апсемплер: промпт уже полное описание сцены. negative_prompt действует
+            # только при CFG > 1. Запасной модели нет: при vram_unavailable задача ставится
+            # заново до 3 раз.
+            "flux3": dict(_images_api("flux3-klein-full", [
+                _aspect(("16:9", "1:1", "21:9", "9:21", "3:2", "2:3", "4:3", "3:4", "9:16")),
+                _negative(),
                 _steps(50),
-                _guidance(5.0),
-                {"key": "shift", "label": "Shift", "kind": "float",
-                 "default": 3.0, "min": 0, "max": 20},
-                {"key": "scheduler", "label": "Планировщик", "kind": "choice",
-                 "choices": ["default", "flow_match", "flash"], "default": "default"},
-                _use_pe(True),
-            ]),
+                _guidance(3.5, "CFG (рекомендуется 3–4)"),
+                _use_pe(False),
+            ]), timeout=1500, vram_wait_rounds=3),
         },
     }
 
