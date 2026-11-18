@@ -607,11 +607,15 @@ def _pregen_runs(name: str, config: dict, now: datetime.datetime) -> list:
     schedule = schedule_store.load_schedule()
     earliest = now + datetime.timedelta(minutes=MIN_AHEAD_MINUTES)
     latest = now + _hours(config, "pregen_horizon_hours", PREGEN_HORIZON_HOURS)
+    # pregen_skip — задачи, которым этот инстанс вечером не пишет: у minimax ответ
+    # 320–440 слов, рассуждающий Qwen4 не укладывается в тайм-аут, а стоп на первой
+    # ошибке оставил бы без заготовок и все остальные запуски. Их закрывает пакет Opus.
+    skip = set(config.get("pregen_skip") or [])
     runs = []
     with _state() as data:
         for key, job in jobs_store.load_jobs().items():
             entry = schedule.get(key)
-            if job.get("archived") or not entry or not entry["enabled"]:
+            if job.get("archived") or not entry or not entry["enabled"] or key in skip:
                 continue
             if job.get("pipeline", "image") not in PROMPT_PIPELINES:
                 continue

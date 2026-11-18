@@ -96,6 +96,18 @@ class PregenTests(PregenTestCase):
         self.assertEqual(summary["ok"], 6)
         self.assertEqual(len(self.calls), 12)
 
+    def test_skipped_jobs_get_no_pregen_and_stay_for_opus(self):
+        """pregen_skip: задача (у нас minimax — слишком длинный ответ для Qwen4) вечером
+        пропускается, остальные заготавливаются, её запуск закрывает пакет Opus."""
+        self.providers = self.pregen_providers(pregen_skip=["hidream"])
+        self.trigger()
+        summary = pb.pregen_check(EVENING, background=False)
+        self.assertEqual(summary["ok"], 5)
+        self.assertNotIn("hidream", self.drafts("ready"))
+        self.assertFalse(any("user hidream" in call[1] for call in self.calls))
+        pb.tick(at(2, 30, day=19))               # до hidream в 04:30 — lead 120 мин
+        self.assertIn("hidream", self.sent_jobs())
+
     def test_old_or_missing_trigger_does_nothing(self):
         self.assertEqual(pb.pregen_check(EVENING, background=False), {})
         self.trigger(at(15, 0))                  # старше 3 часов
