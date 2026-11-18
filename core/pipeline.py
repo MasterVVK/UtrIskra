@@ -78,10 +78,10 @@ def _prepare_prompt(key: str, job: dict):
                     "%d символов) — синхронный вызов LLM не нужен", key, draft["batch_id"],
                     draft["provider"], draft.get("model"), len(draft["text"]))
         return draft["system"], draft["user"], draft["text"]
-    return _render_and_generate(job, prompt_row)
+    return _render_and_generate(job, prompt_row, key)
 
 
-def _render_and_generate(job: dict, prompt_row: dict):
+def _render_and_generate(job: dict, prompt_row: dict, key: str = None):
     """Рендер плейсхолдеров (новые случайные числа) и текст через цепочку LLM."""
     llm_config = job.get("llm", {})
     system_prompt = prompt_row["system"]
@@ -89,6 +89,7 @@ def _render_and_generate(job: dict, prompt_row: dict):
         prompt_row["user"],
         max_theme=int(llm_config.get("max_theme", 10)),
         max_category=int(llm_config.get("max_category", 14)),
+        **prompt_batches.style_kwargs(key, llm_config),
     )
     return system_prompt, user_prompt, _generate_text(job, system_prompt, user_prompt)
 
@@ -174,7 +175,7 @@ async def _run_image_job(key: str, job: dict):
                            generated_prompt)
             # Мимо пакетной заготовки: она уже израсходована на отклонённый текст.
             system_prompt, user_prompt, generated_prompt = _render_and_generate(
-                job, prompts_store.get_prompt(key))
+                job, prompts_store.get_prompt(key), key)
 
     extension = str(params.get("output_format", "png")) or "png"
     image_path = _build_image_path(job["file_prefix"], extension)

@@ -20,13 +20,17 @@ _cache = {"mtime": None, "data": None}
 
 def _image_job(title, prefix, prompt_file, letter, image_provider, image_params,
                hour, minute, *, temperature=0.7, max_theme=10, max_category=14,
-               retries=0, note=""):
+               retries=0, note="", styles=None):
+    llm = {"provider": None, "temperature": temperature,
+           "max_theme": max_theme, "max_category": max_category}
+    if styles is not None:
+        # Каталог стилей с памятью повторов (core/styles.py): {random_style} в промпте.
+        llm["styles"] = styles
     return {
         "title": title, "pipeline": "image", "media": "image",
         "file_prefix": prefix, "extra_prefixes": [],
         "prompt_file": prompt_file,
-        "llm": {"provider": None, "temperature": temperature,
-                "max_theme": max_theme, "max_category": max_category},
+        "llm": llm,
         "image": {"provider": image_provider, "params": image_params},
         "watermark": {"enabled": True, "letter": letter},
         "publish": {"chat_id": None, "retries": retries},
@@ -69,13 +73,14 @@ def _default_jobs():
         "dalle": _image_job(
             "DALL-E", "dalle_image", "dalle_runner.txt", "D", "dalle",
             {"model": "gpt-image-2", "size": "1536x1024", "quality": "auto"},
-            10, 0, temperature=1.0, max_theme=50, max_category=15, retries=3),
+            10, 0, temperature=1.0, max_theme=50, max_category=15, retries=3,
+            styles={"suits": ["story"], "text": "inscription"}),
         "flux": _image_job(
             "Flux", "flux_story", "flux_runner.txt", "F", "flux",
             {"width": 1344, "height": 768, "steps": 50}, 11, 0),
         "yandex": _image_job(
             "Yandex Art", "yandex_story", "yandex_runner.txt", "Y", "yandex",
-            {}, 12, 0, temperature=0.9, retries=3),
+            {}, 12, 0, temperature=0.9, retries=3, styles={"suits": ["north"]}),
         "gemini_image": _image_job(
             "Gemini Image", "gemini_image_story", "gemini_image_runner.txt", "G",
             "gemini_image", {"model": "gemini-2.5-flash-image"}, 13, 0),
@@ -96,7 +101,8 @@ def _default_jobs():
         "zimage": _image_job(
             "Z-Image", "zimage_story", "zimage_runner.txt", "Z", "zimage",
             {"model": "z-image-base-full", "aspect_ratio": "16:9", "num_inference_steps": 30,
-             "guidance_scale": 5.0, "use_pe": False}, 16, 0, retries=3),
+             "guidance_scale": 5.0, "use_pe": False}, 16, 0, retries=3,
+            styles={"suits": ["landscape"]}),
         "stability_prompts": _image_job(
             "Stability AI (промпт-файл)", "stability_story", "stability_runner.txt",
             "S", "stability",
@@ -105,33 +111,36 @@ def _default_jobs():
         "qwen": _image_job(
             "Qwen Image", "qwen_story", "qwen_runner.txt", "Q", "qwen",
             {"model": "qwen-image-2.1-full", "aspect_ratio": "16:9", "num_inference_steps": 40,
-             "guidance_scale": 1.0, "use_pe": False}, 17, 30, retries=3),
+             "guidance_scale": 1.0, "use_pe": False}, 17, 30, retries=3,
+            styles={"suits": ["people"], "text": "inscription"}),
         # MiniMax-H3-Image: большие панорамы, 16.8 Мп. Фото в канале Telegram уменьшит
         # до 2560 px, поэтому оригинал уходит следом файлом. Ночью, когда большая
         # карта узла dml свободна от соседей (модели ollama выгружаются).
         "minimax": dict(_image_job(
             "MiniMax H3", "minimax_story", None, "X", "minimax",
             {"aspect_ratio": "16:9"}, 3, 30,
-            max_theme=50, max_category=14, retries=3),
+            max_theme=50, max_category=14, retries=3, styles={"suits": ["crowd"]}),
             publish={"chat_id": None, "retries": 3, "original_as_document": True}),
         "moss": _image_job(
             "MOSS Image", "moss_story", None, "M", "moss",
             {"aspect_ratio": "16:9", "negative_prompt": "", "num_inference_steps": 50,
              "guidance_scale": 3.0, "use_pe": False}, 8, 0,
-            max_theme=50, max_category=14, retries=3),
+            max_theme=50, max_category=14, retries=3, styles={"suits": ["objects"]}),
         "qwen_chat": _image_job(
             "Qwen Chat", "qwen_chat_story", "qwen_chat_runner.txt", "QC", "qwen_chat",
             {"model": "qwen3.7-plus-image", "aspect_ratio": "16:9",
-             "temperature": 0.7, "top_p": 0.95}, 18, 0, retries=3),
+             "temperature": 0.7, "top_p": 0.95}, 18, 0, retries=3,
+            styles={"suits": ["festival"]}),
         "ernie": _image_job(
             "ERNIE", "ernie_story", "ernie_runner.txt", "E", "ernie",
             {"model": "ernie-image-full", "aspect_ratio": "16:9", "num_inference_steps": 100,
-             "guidance_scale": 4.0, "use_pe": False}, 18, 30, max_theme=50, retries=3),
+             "guidance_scale": 4.0, "use_pe": False}, 18, 30, max_theme=50, retries=3,
+            styles={"suits": ["nature"]}),
         "hidream": _image_job(
             "HiDream", "hidream_story", "hidream_runner.txt", "H", "hidream",
             {"aspect_ratio": "16:9", "num_inference_steps": 50, "guidance_scale": 5.0,
              "shift": 3.0, "scheduler": "default", "use_pe": True},
-            19, 0, max_theme=50, retries=3),
+            19, 0, max_theme=50, retries=3, styles={"suits": ["architecture"]}),
     }
 
 

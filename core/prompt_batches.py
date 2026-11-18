@@ -188,6 +188,17 @@ def _state():
 
 # ------------------------------------------------------------------- правила
 
+def style_kwargs(key: str, llm_config: dict) -> dict:
+    """Доп. аргументы render_user_prompt для задачи с каталогом стилей (llm.styles).
+
+    Общий для трёх рендеров — пайплайна, пакета и вечерней заготовки, — чтобы стиль
+    и тема с памятью повторов выбирались одинаково. Задаче без llm.styles — ничего:
+    рендер прежний.
+    """
+    styles = (llm_config or {}).get("styles")
+    return {"job_key": key, "styles": styles} if isinstance(styles, dict) else {}
+
+
 def next_run(entry: dict, now: datetime.datetime) -> datetime.datetime:
     """Ближайший запуск по расписанию — тем же CronTrigger, что у планировщика
     панели, чтобы часовой пояс и переходы времени считались одинаково."""
@@ -534,6 +545,7 @@ def _submit(name: str, config: dict, runs: list, now: datetime.datetime):
             max_theme=int(llm_config.get("max_theme", 10)),
             max_category=int(llm_config.get("max_category", 14)),
             now=run_at,
+            **style_kwargs(key, llm_config),
         )
         drafts.append({
             # он же custom_id запроса: по нему результат находит свою заготовку
@@ -668,6 +680,7 @@ def _pregen_one(name, config, provider, key, job, run_at, summary, clock) -> boo
         max_theme=int(llm_config.get("max_theme", 10)),
         max_category=int(llm_config.get("max_category", 14)),
         now=run_at,
+        **style_kwargs(key, llm_config),
     )
     started = time.monotonic()
     try:

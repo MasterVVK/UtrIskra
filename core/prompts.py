@@ -2,7 +2,8 @@
 
 Промпт привязан к ключу задачи. Каждое сохранение — новая версия (INSERT),
 актуальная — последняя. Плейсхолдеры рендерятся при запуске и только
-в user-части: {current_date}, {random_theme}, {random_category}, {random_seed}.
+в user-части: {current_date}, {random_theme}, {random_category}, {random_seed},
+{random_style} (стиль из каталога с памятью повторов — core/styles.py).
 """
 import datetime
 import logging
@@ -65,14 +66,25 @@ def save_prompt(job_key: str, system_prompt: str, user_prompt: str) -> bool:
 
 
 def render_user_prompt(user_prompt: str, max_theme: int = 10, max_category: int = 14,
-                       now: datetime.datetime = None) -> str:
+                       now: datetime.datetime = None, job_key: str = None,
+                       styles: dict = None) -> str:
     """Подставляет плейсхолдеры в user-часть промпта.
 
     now — момент, для которого рендерится {current_date}. Пакетная заготовка
     готовится за часы до запуска и должна нести дату запуска, а не отправки.
+
+    styles — llm.styles задачи (core/styles.py). С ним {random_style} — стиль из
+    каталога с памятью повторов, а {random_theme} не повторяет недавние темы задачи;
+    без него тема — простое случайное число, как раньше.
     """
+    from core import styles as styles_catalog
+
     current_date = (now or datetime.datetime.now()).strftime("%d %B %Y")
-    random_theme = str(random.randint(1, max(1, int(max_theme))))
+    if styles is not None and "{random_theme}" in user_prompt:
+        random_theme = str(styles_catalog.choose_theme(job_key, max_theme,
+                                                       styles.get("theme_runs"), now=now))
+    else:
+        random_theme = str(random.randint(1, max(1, int(max_theme))))
     random_category = str(random.randint(1, max(1, int(max_category))))
     random_seed = str(random.randint(1, 999_999))
     rendered = (user_prompt
@@ -80,8 +92,16 @@ def render_user_prompt(user_prompt: str, max_theme: int = 10, max_category: int 
                 .replace("{random_theme}", random_theme)
                 .replace("{random_category}", random_category)
                 .replace("{random_seed}", random_seed))
-    logger.info("Промпт отрендерен: random_theme=%s, random_category=%s, random_seed=%s",
-                random_theme, random_category, random_seed)
+    random_style = "-"
+    if "{random_style}" in rendered:
+        style = styles_catalog.choose_style(job_key, styles, now=now)
+        if style is None:
+            raise RuntimeError("В промпте есть {random_style}, но каталог стилей пуст "
+                               f"или ни один стиль не подходит задаче «{job_key}»")
+        random_style = style["id"]
+        rendered = rendered.replace("{random_style}", styles_catalog.format_style(style, styles))
+    logger.info("Промпт отрендерен: random_theme=%s, random_category=%s, random_seed=%s, "
+                "random_style=%s", random_theme, random_category, random_seed, random_style)
     return rendered
 
 
