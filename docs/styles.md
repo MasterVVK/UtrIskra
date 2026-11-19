@@ -75,13 +75,34 @@ sqlite3 storage/database/daily_images.db \
   "SELECT rendered_at, job_key, kind, value FROM render_usage ORDER BY id DESC LIMIT 30"
 ```
 
+## Подпись к посту
+
+С 19.11.2026 пост задачи с каталогом (`llm.styles`) уходит в Telegram с подписью — какой
+стиль выпал:
+
+```
+🎨 Стиль: Томас Коул (Thomas Cole) — масло, холст; США, 1820–1840-е
+```
+
+Пайплайн находит стиль в отрендеренном промпте по началу его строки «Имя (техника;
+место, время) — » (`styles.find_in_prompt`): так подпись верна и для заготовки, где
+хранится только текст, и для промпта, переписанного после отказа модерации. Русские
+название, техника, место и время — `data/styles_ru.json` (`{id: {name, medium, where}}`,
+перевод Claude Opus); у художников в скобках остаётся имя в оригинале. Нет перевода —
+подпись по-английски из каталога; стиль не найден — пост без подписи (предупреждение
+в журнал). Отключить у задачи — `"publish": {"style_caption": false}`.
+
 ## Пересборка каталога
 
 ```bash
 set -a; . ./.env; set +a
 .venv/bin/python tools/styles_catalog.py sections   # разделы через Opus → storage/styles_raw/
 .venv/bin/python tools/styles_catalog.py build      # склейка → data/styles.json
+.venv/bin/python tools/styles_catalog.py translate  # перевод новых стилей → data/styles_ru.json
 ```
+
+Перевод отдельным файлом пересборка не затирает; `translate` переводит только стили без
+перевода.
 
 Готовые ответы разделов не запрашиваются повторно (удалите файл раздела, чтобы обновить
 его). `id` стиля выводится из имени: при пересборке у тех же стилей те же `id`, и память

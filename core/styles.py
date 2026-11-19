@@ -29,6 +29,9 @@
                    (например, «японская гравюра» два дня подряд) (3);
   theme_runs     — сколько последних тем задачи не повторяется (по умолчанию
                    половина max_theme, но не больше 25).
+
+Подпись к посту в Telegram — какой стиль выпал (caption, по-русски из
+data/styles_ru.json); пайплайн находит стиль в отрендеренном промпте (find_in_prompt).
 """
 from __future__ import annotations
 
@@ -37,6 +40,7 @@ import json
 import logging
 import os
 import random
+import re
 import sqlite3
 import threading
 
@@ -46,12 +50,14 @@ logger = logging.getLogger(__name__)
 
 CATALOG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                             "data", "styles.json")
+RU_PATH = os.path.join(os.path.dirname(CATALOG_PATH), "styles_ru.json")
 DEFAULTS = {"suits": [], "min_figurative": 1, "min_fame": 1, "text": "graphics",
             "repeat_days": 365, "global_days": 3, "section_runs": 3}
 MAX_THEME_RUNS = 25
 
 _lock = threading.Lock()
 _cache = {"mtime": None, "data": None}
+_ru_cache = {"mtime": None, "data": {}}
 
 
 def load_catalog() -> list:
@@ -181,14 +187,19 @@ def choose_style(job_key: str | None, config: dict | None, now=None, rng=random)
     return style
 
 
-def format_style(style: dict, config: dict | None) -> str:
-    """Строка стиля для промпта: имя, техника, место и время, видимые признаки."""
-    cfg = settings(config)
+def _head(style: dict) -> str:
+    """«Имя (техника; место, время)» — начало строки стиля в промпте."""
     where = ", ".join(x for x in (style.get("region"), style.get("era")) if x)
     head = style["name"]
     if style.get("medium") or where:
         head += f" ({'; '.join(x for x in (style.get('medium'), where) if x)})"
-    line = f"{head} — {style['features']}"
+    return head
+
+
+def format_style(style: dict, config: dict | None) -> str:
+    """Строка стиля для промпта: имя, техника, место и время, видимые признаки."""
+    cfg = settings(config)
+    line = f"{_head(style)} — {style['features']}"
     if style.get("note"):
         # Оговорки каталога: «не воспроизводить персонажей франшизы», «фей — одетыми» и т. п.
         line += f" (Caution: {style['note'].rstrip('.')}.)"
@@ -198,6 +209,66 @@ def format_style(style: dict, config: dict | None) -> str:
         else:
             line += " (стиль связан с надписями — бери только его графику, без букв)"
     return line
+
+
+# --- подпись к посту ----------------------------------------------------------------
+
+def load_ru() -> dict:
+    """Русские названия стилей {id: {name, medium, where}} (с кэшем по mtime).
+
+    Отдельный файл, а не поля каталога: пересборка каталога (tools/styles_catalog.py
+    build) его не затирает, недостающие переводы дописывает команда translate.
+    """
+    with _lock:
+        try:
+            mtime = os.path.getmtime(RU_PATH)
+            if _ru_cache["mtime"] != mtime:
+                with open(RU_PATH, encoding="utf-8") as file:
+                    _ru_cache.update(mtime=mtime, data=json.load(file))
+            return _ru_cache["data"]
+        except (OSError, ValueError) as exc:
+            logger.warning("Русские названия стилей %s не прочитаны: %s", RU_PATH, exc)
+            return {}
+
+
+def find_in_prompt(text: str, catalog: list | None = None) -> dict | None:
+    """Стиль, подставленный в отрендеренный промпт, или None.
+
+    Ищется начало строки стиля «Имя (техника; место, время) — »: format_style пишет
+    его всегда, а в заготовке хранится уже отрендеренный текст, без id стиля.
+    """
+    if not text:
+        return None
+    best, best_len = None, 0
+    for style in catalog if catalog is not None else load_catalog():
+        head = _head(style)
+        if len(head) > best_len and f"{head} — " in text:
+            best, best_len = style, len(head)
+    return best
+
+
+def caption(style: dict) -> str:
+    """Подпись к посту: «🎨 Стиль: Томас Коул (Thomas Cole) — масло, холст; США, 1820–1840-е».
+
+    Без перевода — английские имя, техника, место и время из каталога.
+    """
+    ru = load_ru().get(style["id"]) or {}
+    name = ru.get("name") or style["name"]
+    if ru.get("name") and style.get("kind") == "artist" and "(" not in name:
+        # Имя художника в оригинале — после русского имени, до уточнения через запятую:
+        # «Бланш Лаззелл (Blanche Lazzell), провинстаунская ксилография». Если в русском
+        # имени уже есть скобки, вторые не добавляются.
+        original = re.sub(r"\s*\(.*?\)", "", style["name"]).split(",")[0].strip()
+        if original and original != name:
+            first, comma, rest = name.partition(",")
+            name = f"{first} ({original}){comma}{rest}"
+    if ru:
+        medium, where = ru.get("medium") or "", ru.get("where") or ""
+    else:
+        medium = style.get("medium") or ""
+        where = ", ".join(x for x in (style.get("region"), style.get("era")) if x)
+    details = "; ".join(x for x in (medium, where) if x)
+    return f"🎨 Стиль: {name}" + (f" — {details}" if details else "")
 
 
 def choose_theme(job_key: str | None, max_theme: int, runs: int | None = None,

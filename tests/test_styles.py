@@ -26,12 +26,16 @@ class StylesBase(unittest.TestCase):
         self.dir = tempfile.TemporaryDirectory()
         self.catalog_path = os.path.join(self.dir.name, "styles.json")
         self.db_path = os.path.join(self.dir.name, "db.sqlite")
+        self.real_ru = styles.RU_PATH
+        self.ru_path = os.path.join(self.dir.name, "styles_ru.json")
         patches = [mock.patch.object(styles, "CATALOG_PATH", self.catalog_path),
+                   mock.patch.object(styles, "RU_PATH", self.ru_path),
                    mock.patch.object(styles, "DB_PATH", self.db_path)]
         for patch in patches:
             patch.start()
             self.addCleanup(patch.stop)
         styles._cache.update(mtime=None, data=None)
+        styles._ru_cache.update(mtime=None, data={})
         self.addCleanup(self.dir.cleanup)
         self.now = datetime.datetime(2026, 11, 19, 4, 30)
 
@@ -170,6 +174,67 @@ class RenderTests(StylesBase):
         self.assertTrue(user.startswith("Style 1 "))
         self.assertEqual(styles._recent("SELECT job_key, value FROM render_usage WHERE kind='style'", ()),
                          [("qwen", "st1")])
+
+
+class CaptionTests(StylesBase):
+    def write_ru(self, data):
+        with open(self.ru_path, "w", encoding="utf-8") as file:
+            json.dump(data, file, ensure_ascii=False)
+        styles._ru_cache.update(mtime=None)
+
+    def test_find_in_prompt(self):
+        items = [style(1), style(12), dict(style(3), name="Style 1 (Paris)", medium="", region="", era="")]
+        self.write(items)
+        text = "Тема 4.\nСтиль: " + styles.format_style(items[1], {}) + "\nРакурс 2"
+        self.assertEqual(styles.find_in_prompt(text)["id"], "st12")
+        self.assertEqual(styles.find_in_prompt("Стиль: " + styles.format_style(items[2], {}))["id"], "st3")
+        self.assertIsNone(styles.find_in_prompt("Стиль: Style 7 (oil) — traits"))
+        self.assertIsNone(styles.find_in_prompt(""))
+
+    def test_caption_russian_artist_keeps_original_name(self):
+        self.write_ru({"st1": {"name": "Стиль Один", "medium": "масло, холст", "where": "Франция, 1900-е"}})
+        self.assertEqual(styles.caption(dict(style(1), name="Style 1 (elder)")),
+                         "🎨 Стиль: Стиль Один (Style 1) — масло, холст; Франция, 1900-е")
+        self.assertEqual(styles.caption(dict(style(1), kind="school")),
+                         "🎨 Стиль: Стиль Один — масло, холст; Франция, 1900-е")
+        self.write_ru({"st1": {"name": "Стиль Один, поздний", "medium": "масло", "where": ""},
+                       "st2": {"name": "Стиль Два (пастели)", "medium": "", "where": "Франция"}})
+        self.assertEqual(styles.caption(dict(style(1), name="Style 1, late")),
+                         "🎨 Стиль: Стиль Один (Style 1), поздний — масло")
+        self.assertEqual(styles.caption(dict(style(2), name="Style 2, pastels")),
+                         "🎨 Стиль: Стиль Два (пастели) — Франция")
+
+    def test_caption_without_translation_is_english(self):
+        self.assertEqual(styles.caption(style(2)), "🎨 Стиль: Style 2 — oil on canvas; France, 1900s")
+
+    def test_pipeline_caption(self):
+        self.write([style(1)])
+        self.write_ru({"st1": {"name": "Стиль Один", "medium": "масло", "where": "Франция"}})
+        user = "Стиль: " + styles.format_style(style(1), {})
+        job = {"llm": {"styles": {}}, "publish": {}}
+        self.assertEqual(pipeline._style_caption("k", job, user),
+                         "🎨 Стиль: Стиль Один (Style 1) — масло; Франция")
+        self.assertIsNone(pipeline._style_caption("k", {"llm": {}}, user))
+        self.assertIsNone(pipeline._style_caption("k", dict(job, publish={"style_caption": False}), user))
+        self.assertIsNone(pipeline._style_caption("k", job, "Стиль: что-то другое"))
+        with mock.patch.object(styles, "caption", side_effect=KeyError("id")):
+            self.assertIsNone(pipeline._style_caption("k", job, user))
+
+    def test_real_catalog_found_and_translated(self):
+        """Каждый стиль data/styles.json находится по своей строке в промпте и имеет перевод."""
+        with mock.patch.object(styles, "CATALOG_PATH", self.real_catalog), \
+                mock.patch.object(styles, "RU_PATH", self.real_ru):
+            styles._cache.update(mtime=None, data=None)
+            catalog = styles.load_catalog()
+            ru = styles.load_ru()
+            missing = [s["id"] for s in catalog if not (ru.get(s["id"]) or {}).get("name")]
+            self.assertEqual(missing, [])
+            for s in random.Random(5).sample(catalog, 120):
+                for cfg in ({}, {"text": "inscription"}):
+                    text = "Тема 3.\nСтиль: " + styles.format_style(s, cfg) + "\n"
+                    self.assertEqual(styles.find_in_prompt(text, catalog)["id"], s["id"])
+                self.assertTrue(styles.caption(s).startswith(
+                    "🎨 Стиль: " + ru[s["id"]]["name"].split(",")[0]), s["id"])
 
 
 if __name__ == "__main__":

@@ -22,6 +22,7 @@ from core import jobs as jobs_store
 from core import prompt_batches
 from core import prompts as prompts_store
 from core import providers_store
+from core import styles as styles_catalog
 from core.publisher import publish_media
 from providers.image.base import PromptRejected, build_image_provider, download_bytes
 from providers.llm.base import build_llm_provider
@@ -99,6 +100,26 @@ def _apply_watermark(job: dict, path: str):
     if watermark.get("enabled", True):
         stamp = f"{watermark.get('letter', '')} {datetime.datetime.now().strftime('%d.%m.%Y')}".strip()
         add_date_to_image(path, stamp)
+
+
+def _style_caption(key: str, job: dict, user_prompt: str):
+    """Подпись «🎨 Стиль: …» к посту задачи с каталогом стилей (llm.styles), иначе None.
+
+    Стиль ищется в отрендеренном промпте — так он верен и для заготовки, и для
+    промпта, переписанного после отказа модерации. Отключается publish.style_caption
+    = false. Сбой здесь публикацию не останавливает.
+    """
+    if job.get("llm", {}).get("styles") is None or not job.get("publish", {}).get("style_caption", True):
+        return None
+    try:
+        style = styles_catalog.find_in_prompt(user_prompt)
+        if style is None:
+            logger.warning("Задача «%s»: стиль в промпте не найден — пост без подписи", key)
+            return None
+        return styles_catalog.caption(style)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Задача «%s»: подпись стиля не собрана: %s", key, exc)
+        return None
 
 
 async def _publish(job: dict, path: str, *, media: str = "image", caption: str = None):
@@ -191,7 +212,7 @@ async def _run_image_job(key: str, job: dict):
         generated_prompt=generated_prompt,
         image_path=image_path,
     )
-    await _publish(job, image_path)
+    await _publish(job, image_path, caption=_style_caption(key, job, user_prompt))
 
 
 async def _run_midjourney_video_job(key: str, job: dict):

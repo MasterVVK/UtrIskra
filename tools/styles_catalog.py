@@ -4,6 +4,7 @@
   .venv/bin/python tools/styles_catalog.py sections   # разделы → storage/styles_raw/s*.json (готовые пропускаются)
   .venv/bin/python tools/styles_catalog.py existing   # стили из existing.json, которых нет в разделах → e*.json
   .venv/bin/python tools/styles_catalog.py build      # склейка, дубли, проверка → data/styles.json
+  .venv/bin/python tools/styles_catalog.py translate  # русские названия для подписей → data/styles_ru.json
 
 existing.json (необязательный) — стили прежних таблиц промптов: [{"style", "section", ...}].
 Подробности — docs/styles.md.
@@ -254,6 +255,59 @@ def run_build():
           "с надписями:", sum(e["text"] for e in ordered))
 
 
+RU_OUT = os.path.join(ROOT, "data", "styles_ru.json")
+
+RU_SYSTEM = """You translate entries of an art-style catalogue into Russian for captions under pictures in a Russian-language Telegram channel ("🎨 Стиль: <name> — <medium>; <where>").
+
+The user sends a JSON array of entries {"id", "name", "kind", "medium", "region", "era"}. Return ONLY a JSON object (no markdown fences, no commentary) mapping every id to {"name": ..., "medium": ..., "where": ...}:
+- name: the established Russian name. Artists — the usual Russian spelling of the name as in Russian art literature (Томас Коул, Кацусика Хокусай, Лотте Райнигер, Чэнь Хуншоу by Palladius for Chinese, Polivanov for Japanese); keep a disambiguating remark in parentheses only if the original has one. Schools, movements, traditions, techniques — the accepted Russian art-history term (лучизм, укиё-э, палехская миниатюра, средневековая карта мира (mappa mundi) и портолан), capitalised as a Russian sentence start; a foreign term may stay in Latin script in parentheses when Russian has no accepted one.
+- medium: short and natural, lower case (масло, холст; цветная ксилография; темпера, дерево; гуашь, картон).
+- where: region and period together, short (США, 1820–1840-е; Япония, конец XVIII века; Западная Европа, XIII–XV века). Centuries in Roman numerals.
+Accuracy matters: do not invent; if unsure about a name's Russian form, transliterate it by the standard rules."""
+
+
+def run_translate():
+    """Русские названия для подписей к постам → data/styles_ru.json (только недостающие)."""
+    import threading
+
+    catalog = json.load(open(OUT, encoding="utf-8"))["styles"]
+    ru = json.load(open(RU_OUT, encoding="utf-8")) if os.path.exists(RU_OUT) else {}
+    todo = [{k: s.get(k, "") for k in ("id", "name", "kind", "medium", "region", "era")}
+            for s in catalog if s["id"] not in ru]
+    print("без перевода:", len(todo), flush=True)
+    chunks = [todo[i:i + 120] for i in range(0, len(todo), 120)]
+    lock = threading.Lock()
+
+    def one(chunk):
+        ids = {s["id"] for s in chunk}
+        llm = build_llm_provider("opus", CFG)
+        for _ in range(3):
+            try:
+                text = re.sub(r"^```(?:json)?\s*|\s*```$", "", llm.generate(
+                    RU_SYSTEM, json.dumps(chunk, ensure_ascii=False)).strip())
+                data = json.loads(text)
+                got = {k: {f: " ".join(str(v.get(f) or "").split()) for f in ("name", "medium", "where")}
+                       for k, v in data.items() if k in ids and isinstance(v, dict) and v.get("name")}
+                with lock:
+                    ru.update(got)
+                    tmp = RU_OUT + ".tmp"
+                    with open(tmp, "w", encoding="utf-8") as file:
+                        json.dump(dict(sorted(ru.items())), file, ensure_ascii=False, indent=1)
+                    os.replace(tmp, RU_OUT)
+                return f"{len(got)} из {len(chunk)}"
+            except Exception as exc:  # noqa: BLE001
+                err = exc
+        return f"ОШИБКА: {err}"
+
+    with cf.ThreadPoolExecutor(max_workers=8) as pool:
+        for n, status in enumerate(pool.map(one, chunks)):
+            print(f"r{n:02d}", status, flush=True)
+    missing = [s["id"] for s in catalog if s["id"] not in ru]
+    print("переведено:", len(catalog) - len(missing), "из", len(catalog),
+          "| без перевода:", missing[:10] if missing else 0)
+
+
 if __name__ == "__main__":
     os.makedirs(RAW, exist_ok=True)
-    {"sections": run_sections, "existing": run_existing, "build": run_build}[sys.argv[1]]()
+    {"sections": run_sections, "existing": run_existing, "build": run_build,
+     "translate": run_translate}[sys.argv[1]]()
