@@ -40,6 +40,17 @@ def _utc_now():
     return datetime.datetime.now(datetime.timezone.utc)
 
 
+def _is_gc_noise(record) -> bool:
+    """«Future/Task exception was never retrieved» от asyncio — не сбой запуска.
+
+    Так asyncio при сборке мусора сообщает о брошенной внутренней задаче. После
+    тайм-аута отправки в Telegram такую оставляет aiohttp (обрыв загрузки фото), а
+    публикатор уже повторил отправку и пост вышел. Настоящий сбой раннера приходит
+    исключением или собственной записью ERROR.
+    """
+    return record.name == "asyncio" and "exception was never retrieved" in record.getMessage()
+
+
 class LogCaptureHandler(logging.Handler):
     """Пишет записи логов в буфер запуска, активного в текущем контексте."""
 
@@ -61,7 +72,7 @@ class LogCaptureHandler(logging.Handler):
                 run["logs"].append(self.format(record))
             elif len(run["logs"]) == MAX_LOG_LINES:
                 run["logs"].append("… лог обрезан …")
-            if record.levelno >= logging.ERROR:
+            if record.levelno >= logging.ERROR and not _is_gc_noise(record):
                 run["had_error"] = True
         except Exception:  # логирование не должно ломать запуск
             self.handleError(record)
