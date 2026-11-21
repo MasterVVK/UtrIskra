@@ -52,6 +52,12 @@ class RetryTest(unittest.TestCase):
         self.assertIsInstance(result, TaskFailed)
         self.assertEqual(len(calls), 3)
 
+    def test_oom_during_generation_is_resubmitted(self):
+        result, calls = run({"model": "m", "vram_wait_rounds": 2},
+                            [TaskFailed("CUDA out of memory", "vram_oom"), b"png"])
+        self.assertEqual(result, b"png")
+        self.assertEqual(calls, ["m", "m"])
+
     def test_other_errors_are_not_resubmitted(self):
         result, calls = run({"model": "m", "vram_wait_rounds": 5},
                             [TaskFailed("сбой", "backend_error")])

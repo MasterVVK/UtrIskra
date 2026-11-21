@@ -88,8 +88,9 @@ class ImagesApiProvider(ImageProvider):
 
         fallbacks = self.config.get("fallback_models") or {}
         # Сколько раз заново поставить ту же модель, если запасной нет, а шлюз не
-        # дождался свободной карты (vram_unavailable; каждое ожидание — до 10 мин).
-        # Для моделей, которым соседи по карте мешают лишь временно (minimax на dml).
+        # дождался свободной карты (vram_unavailable; каждое ожидание — до 10 мин) или
+        # соседи заняли память во время генерации (vram_oom). Для моделей, которым
+        # соседи по карте мешают лишь временно (minimax на dml).
         vram_rounds = int(self.config.get("vram_wait_rounds", 0))
         tried = set()
         while True:
@@ -104,10 +105,16 @@ class ImagesApiProvider(ImageProvider):
                                    self.name, model, exc.error_code, substitute)
                     model = substitute
                     continue
-                if exc.error_code == "vram_unavailable" and vram_rounds > 0:
+                # vram_oom — сосед по карте занял память уже во время генерации
+                # (dml, 21.11.2026: ollama загрузила модель на ~37 ГБ посреди minimax);
+                # это так же временно, как занятая карта до старта.
+                if exc.error_code in ("vram_unavailable", "vram_oom") and vram_rounds > 0:
                     vram_rounds -= 1
-                    logger.warning("«%s»: %s не дождалась свободной VRAM — ставлю заново "
-                                   "(осталось повторов: %d)", self.name, model, vram_rounds)
+                    logger.warning("«%s»: %s — %s, ставлю заново (осталось повторов: %d)",
+                                   self.name, model,
+                                   "не дождалась свободной VRAM" if exc.error_code == "vram_unavailable"
+                                   else "соседи заняли VRAM во время генерации",
+                                   vram_rounds)
                     continue
                 raise
 
