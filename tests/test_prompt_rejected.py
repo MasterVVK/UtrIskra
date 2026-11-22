@@ -16,6 +16,7 @@ import httpx  # noqa: E402
 
 from core import pipeline  # noqa: E402
 from providers.image.base import PromptRejected  # noqa: E402
+from providers.image.dalle import DalleProvider  # noqa: E402
 from providers.image.yandex import YandexProvider  # noqa: E402
 
 JOB = {"file_prefix": "t", "image": {"provider": "fake", "params": {}}, "watermark": {"enabled": False}}
@@ -97,6 +98,35 @@ class YandexModerationTest(unittest.TestCase):
     def test_5xx_stays_http_error(self):
         with self.assertRaises(httpx.HTTPStatusError):
             self.call(500, "Я не могу сгенерировать")
+
+
+class DalleModerationTest(unittest.TestCase):
+    def call(self, status, body):
+        transport = httpx.MockTransport(lambda request: httpx.Response(status, text=body))
+        provider = DalleProvider("dalle", {})
+        with mock.patch.object(provider, "_client",
+                               side_effect=lambda: httpx.AsyncClient(transport=transport)):
+            return asyncio.run(provider.generate("нимфа у источника", {}))
+
+    def test_safety_system_becomes_prompt_rejected(self):
+        # Ответ 22.11.2026 (поле code в журнал не попало) и 14.11.2026.
+        for body in (
+            '{"error":{"message":"Your request was rejected by the safety system. If you believe '
+            'this is an error, contact us. safety_violations=[sexual].",'
+            '"type":"image_generation_user_error","param":null}}',
+            '{"error":{"message":"Rejected.","type":"image_generation_user_error",'
+            '"code":"moderation_blocked"}}',
+        ):
+            with self.assertRaises(PromptRejected):
+                self.call(400, body)
+
+    def test_other_400_stays_runtime_error(self):
+        with self.assertRaises(RuntimeError) as ctx:
+            self.call(400, '{"error":{"message":"Invalid size","type":"invalid_request_error"}}')
+        self.assertNotIsInstance(ctx.exception, PromptRejected)
+
+    def test_success(self):
+        self.assertEqual(self.call(200, '{"data":[{"b64_json":"cG5n"}]}'), b"png")
 
 
 if __name__ == "__main__":

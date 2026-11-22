@@ -35,6 +35,35 @@ _JPEG_QUALITIES = (95, 90, 85, 75)
 PHOTO_MAX_SIDE = 2560
 # sendDocument у Bot API — до 50 МБ.
 DOCUMENT_MAX_BYTES = 49_000_000
+# Telegram принял файл, но не смог его обработать. 22.11.2026 с 03:30 до 06:00 так
+# отказывали PNG по 7–8 МБ (FLUX.3, Qwen — все четыре попытки, посты не вышли), а
+# маленькие PNG и JPEG проходили со второй. Повтор идёт JPEG-копией: её Telegram
+# обрабатывает легче, а фото он всё равно хранит в JPEG.
+IMAGE_PROCESS_FAILED = "IMAGE_PROCESS_FAILED"
+
+
+def _jpeg_copy(path: str):
+    """JPEG-копия для sendPhoto: не больше 2560 px по стороне и 9,5 МБ.
+
+    Возвращает (путь к временному файлу, (ширина, высота), качество).
+    """
+    from PIL import Image
+
+    handle, copy_path = tempfile.mkstemp(prefix="tg_photo_", suffix=".jpg")
+    os.close(handle)
+    try:
+        with Image.open(path) as image:
+            rgb = image.convert("RGB")
+        if max(rgb.size) > PHOTO_MAX_SIDE:
+            rgb.thumbnail((PHOTO_MAX_SIDE, PHOTO_MAX_SIDE), Image.LANCZOS)
+        for quality in _JPEG_QUALITIES:
+            rgb.save(copy_path, "JPEG", quality=quality)
+            if os.path.getsize(copy_path) <= PHOTO_MAX_BYTES:
+                break
+    except Exception:
+        os.unlink(copy_path)
+        raise
+    return copy_path, rgb.size, quality
 
 
 def _photo_within_limit(path: str):
@@ -44,26 +73,10 @@ def _photo_within_limit(path: str):
     """
     if os.path.getsize(path) <= PHOTO_MAX_BYTES:
         return path, False
-
-    from PIL import Image
-
-    handle, copy_path = tempfile.mkstemp(prefix="tg_photo_", suffix=".jpg")
-    os.close(handle)
-    try:
-        with Image.open(path) as image:
-            rgb = image.convert("RGB")
-            if max(rgb.size) > PHOTO_MAX_SIDE:
-                rgb.thumbnail((PHOTO_MAX_SIDE, PHOTO_MAX_SIDE), Image.LANCZOS)
-            for quality in _JPEG_QUALITIES:
-                rgb.save(copy_path, "JPEG", quality=quality)
-                if os.path.getsize(copy_path) <= PHOTO_MAX_BYTES:
-                    break
-    except Exception:
-        os.unlink(copy_path)
-        raise
+    copy_path, (width, height), quality = _jpeg_copy(path)
     logger.info("Фото %s весит %.1f МБ — больше лимита Telegram, отправляется JPEG-копия "
                 "(%dx%d, %.1f МБ, качество %d)", path, os.path.getsize(path) / 1e6,
-                rgb.size[0], rgb.size[1], os.path.getsize(copy_path) / 1e6, quality)
+                width, height, os.path.getsize(copy_path) / 1e6, quality)
     return copy_path, True
 
 
@@ -161,12 +174,19 @@ async def publish_media(path: str, *, media: str = "image",
                     await _send_original(bot, target, path, message.message_id, attempts)
                 return
             except Exception as exc:
-                if attempt < attempts:
+                if attempt >= attempts:
+                    raise
+                if media != "video" and not is_copy and IMAGE_PROCESS_FAILED in str(exc):
+                    upload_path, (width, height), quality = _jpeg_copy(path)
+                    is_copy = True
+                    logger.warning("Telegram не смог обработать фото (попытка %d/%d): %s. "
+                                   "Повтор через %d с JPEG-копией (%dx%d, %.1f МБ, качество %d)",
+                                   attempt, attempts, exc, RETRY_DELAY, width, height,
+                                   os.path.getsize(upload_path) / 1e6, quality)
+                else:
                     logger.warning("Отправка в Telegram не удалась (попытка %d/%d): %s. "
                                    "Повтор через %d с", attempt, attempts, exc, RETRY_DELAY)
-                    await asyncio.sleep(RETRY_DELAY)
-                else:
-                    raise
+                await asyncio.sleep(RETRY_DELAY)
     finally:
         await bot.session.close()
         if is_copy:

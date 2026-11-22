@@ -6,11 +6,27 @@ import os
 import httpx
 from httpx_socks import AsyncProxyTransport
 
-from providers.image.base import ImageProvider
+from providers.image.base import ImageProvider, PromptRejected
 
 logger = logging.getLogger(__name__)
 
 API_URL = "https://api.openai.com/v1/images/generations"
+
+
+def _is_moderation_block(response) -> bool:
+    """Отказ модерации OpenAI: 400, code=moderation_blocked, «rejected by the safety system».
+
+    Классификатор срабатывает и на безобидные сюжеты: 22.11.2026 — safety_violations=[sexual]
+    у сцены «нимфа и девушки набирают воду в пещере» (стиль Тоса); такой текст пишется заново.
+    """
+    if response.status_code != 400:
+        return False
+    try:
+        error = response.json().get("error") or {}
+    except ValueError:
+        return False
+    return (error.get("code") == "moderation_blocked"
+            or "safety system" in str(error.get("message", "")))
 
 
 class DalleProvider(ImageProvider):
@@ -42,6 +58,9 @@ class DalleProvider(ImageProvider):
                    "quality": values.get("quality", "auto"), "n": 1}
         async with self._client() as client:
             response = await client.post(API_URL, headers=self._headers(), json=payload)
+            if _is_moderation_block(response):
+                raise PromptRejected(f"«{self.name}»: OpenAI отклонил запрос модерацией: "
+                                     f"{response.text[:300]}")
             if response.status_code != 200:
                 raise RuntimeError(f"«{self.name}»: OpenAI API {response.status_code}: "
                                    f"{response.text[:300]}")
