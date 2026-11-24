@@ -1,9 +1,35 @@
 """Qwen Chat (Qwen2API / chat.qwen.ai) — обёртка services/qwen_chat_service.py."""
+import asyncio
+import logging
 import os
 
 import httpx
 
 from providers.image.base import ImageProvider, download_bytes
+
+logger = logging.getLogger(__name__)
+
+# CDN Qwen отдаёт готовую картинку не всегда сразу: 24.11.2026 ссылка из ответа
+# (генерация 2 мин 23 с, 200 OK) дала 404, и пост не вышел. Повтор скачивания
+# квоту не тратит, а заново рисовать картинку ради этого незачем.
+DOWNLOAD_ATTEMPTS = 6
+DOWNLOAD_DELAY = 10
+
+
+async def _download_with_retries(name, url):
+    for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+        try:
+            return await download_bytes(url)
+        except (httpx.HTTPStatusError, httpx.TransportError) as exc:
+            status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
+            retryable = status is None or status == 404 or status >= 500
+            if attempt >= DOWNLOAD_ATTEMPTS or not retryable:
+                raise
+            # Ни URL, ни текст исключения в журнал не пишем: в ссылке подписанный ключ.
+            logger.warning("«%s»: картинка с CDN не скачалась (%s), повтор %d из %d через %d с",
+                           name, status or type(exc).__name__, attempt + 1, DOWNLOAD_ATTEMPTS,
+                           DOWNLOAD_DELAY)
+            await asyncio.sleep(DOWNLOAD_DELAY)
 
 
 class QwenChatProvider(ImageProvider):
@@ -32,7 +58,7 @@ class QwenChatProvider(ImageProvider):
             temperature=values.get("temperature", 0.7),
             top_p=values.get("top_p", 0.95),
         )
-        return await download_bytes(image_url)
+        return await _download_with_retries(self.name, image_url)
 
     async def health(self):
         from config import QWEN_CHAT_API_KEY
