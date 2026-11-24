@@ -60,7 +60,21 @@ class RetryTest(unittest.TestCase):
 
     def test_other_errors_are_not_resubmitted(self):
         result, calls = run({"model": "m", "vram_wait_rounds": 5},
-                            [TaskFailed("сбой", "backend_error")])
+                            [TaskFailed("неверный размер", "invalid_request")])
+        self.assertIsInstance(result, TaskFailed)
+        self.assertEqual(calls, ["m"])
+
+    def test_backend_error_resubmitted_once(self):
+        not_resident = TaskFailed("model m is not resident (current: None)", "backend_error")
+        result, calls = run({"model": "m"}, [not_resident, b"png"])
+        self.assertEqual(result, b"png")
+        self.assertEqual(calls, ["m", "m"])
+
+        result, calls = run({"model": "m"}, [not_resident, not_resident])
+        self.assertIsInstance(result, TaskFailed)
+        self.assertEqual(len(calls), 2)
+
+        result, calls = run({"model": "m", "backend_error_retries": 0}, [not_resident])
         self.assertIsInstance(result, TaskFailed)
         self.assertEqual(calls, ["m"])
 

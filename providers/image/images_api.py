@@ -92,6 +92,10 @@ class ImagesApiProvider(ImageProvider):
         # соседи заняли память во время генерации (vram_oom). Для моделей, которым
         # соседи по карте мешают лишь временно (minimax на dml).
         vram_rounds = int(self.config.get("vram_wait_rounds", 0))
+        # Сбой воркера (backend_error) один раз ставим заново: 24.11.2026 воркер Z-Image на
+        # dml выгрузил модель сторожем простоя между загрузкой и генерацией («is not
+        # resident»), а повтор через минуту прошёл бы — воркер перезапускается сам.
+        backend_rounds = int(self.config.get("backend_error_retries", 1))
         tried = set()
         while True:
             tried.add(model)
@@ -115,6 +119,11 @@ class ImagesApiProvider(ImageProvider):
                                    "не дождалась свободной VRAM" if exc.error_code == "vram_unavailable"
                                    else "соседи заняли VRAM во время генерации",
                                    vram_rounds)
+                    continue
+                if exc.error_code == "backend_error" and backend_rounds > 0:
+                    backend_rounds -= 1
+                    logger.warning("«%s»: %s — сбой воркера (%s), ставлю заново",
+                                   self.name, model, exc)
                     continue
                 raise
 
