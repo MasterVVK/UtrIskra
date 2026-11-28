@@ -201,7 +201,7 @@ python -m unittest tests.test_prompt_batches    # самопроверка бе�
 
 **providers/**: адаптеры LLM (`llm/`: gemini с ротацией ключей и прокси, openai-совместимые, anthropic) и генераторов изображений (`image/`: images_api, stability, dalle, flux, kandinsky, yandex, gemini_image, qwen_chat, midjourney)
 
-**services/**: низкоуровневые обёртки API, используемые провайдерами: `midjourney_service.py` (Kolersky: imagine/video/upload на CDN), `kandinsky_service.py`, `yandex_service.py`, `qwen_chat_service.py`
+**services/**: низкоуровневые обёртки API, используемые провайдерами: `midjourney_service.py` (Kolersky: imagine/video/upload на CDN), `kandinsky_service.py`, `yandex_service.py`, `qwen_chat_service.py` (Qwen2API, `qwen3.7-plus-image`; с 28.11.2026 ссылка в ответе ведёт на копию картинки на самом Qwen2API — `/generated/<uuid>.png`, хранится 3 дня, — а при сбое аккаунта Qwen2API перебирает другие по 5 мин на каждый, поэтому тайм-аут запроса 900 с, `timeout` в конфиге инстанса)
 
 **webapp/**: FastAPI-панель (маршруты, планировщик, менеджер запусков с логами, реестр задач, шаблоны, статика)
 

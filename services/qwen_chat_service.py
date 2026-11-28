@@ -15,7 +15,7 @@ class QwenChatService:
         self,
         base_url: str = QWEN_CHAT_API_URL,
         api_key: str = QWEN_CHAT_API_KEY,
-        timeout: int = 300,
+        timeout: int = 900,
     ):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout

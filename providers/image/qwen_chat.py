@@ -15,6 +15,12 @@ logger = logging.getLogger(__name__)
 DOWNLOAD_ATTEMPTS = 6
 DOWNLOAD_DELAY = 10
 
+# С 28.11.2026 Qwen2API отдаёт вместо CDN-ссылки копию картинки на себе
+# (/generated/<uuid>.png) и при сбое аккаунта перебирает другие, по 5 мин на каждый:
+# обычный ответ ~2 мин, но с одним сбойным аккаунтом он придёт через ~7 мин.
+# Повтора генерации в пайплайне нет — оборванный запрос оставляет день без поста.
+DEFAULT_TIMEOUT = 900
+
 
 async def _download_with_retries(name, url):
     for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
@@ -50,7 +56,8 @@ class QwenChatProvider(ImageProvider):
     async def generate(self, prompt, params):
         from services.qwen_chat_service import QwenChatService
         values = self.apply_defaults(params)
-        service = QwenChatService(base_url=self.base_url)
+        service = QwenChatService(base_url=self.base_url,
+                                  timeout=int(self.config.get("timeout", DEFAULT_TIMEOUT)))
         image_url = await service.generate_image(
             prompt,
             aspect_ratio=values.get("aspect_ratio", "16:9"),
@@ -58,6 +65,8 @@ class QwenChatProvider(ImageProvider):
             temperature=values.get("temperature", 0.7),
             top_p=values.get("top_p", 0.95),
         )
+        # Абсолютная ссылка остаётся как есть, относительная (/generated/…) — от хоста API.
+        image_url = str(httpx.URL(self.base_url).join(image_url))
         return await _download_with_retries(self.name, image_url)
 
     async def health(self):

@@ -63,5 +63,42 @@ class DownloadRetryTest(unittest.TestCase):
         self.assertEqual(len(calls), qwen_chat.DOWNLOAD_ATTEMPTS)
 
 
+class ProviderTest(unittest.TestCase):
+    """Тайм-аут из конфига инстанса и ссылки Qwen2API: абсолютная и относительная."""
+
+    def generate(self, config, link):
+        seen = {}
+
+        class FakeService:
+            def __init__(self, base_url, timeout):
+                seen["timeout"] = timeout
+
+            async def generate_image(self, prompt, **kwargs):
+                return link
+
+        async def fake_download(name, url):
+            seen["url"] = url
+            return b"png"
+
+        from services import qwen_chat_service
+        provider = qwen_chat.QwenChatProvider("qwen_chat", config)
+        with mock.patch.object(qwen_chat_service, "QwenChatService", FakeService), \
+             mock.patch.object(qwen_chat, "_download_with_retries", fake_download):
+            self.assertEqual(asyncio.run(provider.generate("p", {})), b"png")
+        return seen
+
+    def test_default_timeout_and_absolute_link(self):
+        seen = self.generate({"base_url": "http://localhost:3001/v1"},
+                             "http://192.0.2.1:3001/generated/a.png")
+        self.assertEqual(seen["timeout"], qwen_chat.DEFAULT_TIMEOUT)
+        self.assertEqual(seen["url"], "http://192.0.2.1:3001/generated/a.png")
+
+    def test_timeout_from_config_and_relative_link(self):
+        seen = self.generate({"base_url": "http://localhost:3001/v1", "timeout": 600},
+                             "/generated/a.png")
+        self.assertEqual(seen["timeout"], 600)
+        self.assertEqual(seen["url"], "http://localhost:3001/generated/a.png")
+
+
 if __name__ == "__main__":
     unittest.main()
