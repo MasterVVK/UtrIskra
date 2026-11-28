@@ -26,6 +26,11 @@ MAX_503_RETRIES = 3
 RETRY_DELAY_SEC = 10
 
 
+def key_header(key: str) -> dict:
+    """Ключ — заголовком, не `?key=` в URL: httpx пишет URL запроса в журнал (INFO)."""
+    return {"x-goog-api-key": key}
+
+
 class GeminiProvider(LLMProvider):
     type = "gemini"
 
@@ -62,7 +67,7 @@ class GeminiProvider(LLMProvider):
                 retries = 0
                 while retries < MAX_503_RETRIES:
                     try:
-                        response = client.post(url, params={"key": key}, json=payload)
+                        response = client.post(url, headers=key_header(key), json=payload)
                     except Exception as exc:
                         retries += 1
                         logger.warning("LLM «%s»: сетевая ошибка (%s), попытка %d/%d",
@@ -105,7 +110,7 @@ class GeminiProvider(LLMProvider):
         try:
             with self._client() as client:
                 response = client.get(f"{BASE_URL}/{self.model}",
-                                      params={"key": self.api_keys[self._key_index]},
+                                      headers=key_header(self.api_keys[self._key_index]),
                                       timeout=15)
             if response.status_code == 200:
                 return True, f"модель {self.model} доступна, ключей: {len(self.api_keys)}"

@@ -9,6 +9,7 @@ import os
 import httpx
 
 from providers.image.base import ImageProvider
+from providers.llm.gemini import key_header
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ class GeminiImageProvider(ImageProvider):
             async with httpx.AsyncClient(timeout=15) as client:
                 response = await client.get(
                     f"https://generativelanguage.googleapis.com/v1beta/models/{model}",
-                    params={"key": keys[0]})
+                    headers=key_header(keys[0]))
             if response.status_code == 200:
                 return True, f"модель {model} доступна, ключей: {len(keys)}"
             return False, f"HTTP {response.status_code}"
